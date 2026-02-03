@@ -41,13 +41,13 @@ vim.api.nvim_create_autocmd("FileType", {
     end,
 })
 
-vim.api.nvim_create_autocmd({ "BufWritePost", "InsertLeave" }, {
+vim.api.nvim_create_autocmd("BufWritePost", {
     group = group,
     pattern = { "*.cs", "*.razor", "*.cshtml" },
-    callback = function()
-        local clients = vim.lsp.get_clients({ name = "roslyn" })
-        for _, client in ipairs(clients) do
-            require("roslyn.lsp.diagnostics").refresh(client)
+    callback = function(args)
+        local client = vim.lsp.get_clients({ name = "roslyn", bufnr = args.buf })[1]
+        if client then
+            require("roslyn.lsp.diagnostics").refresh_buf(client, args.buf)
         end
     end,
 })
