@@ -20,15 +20,24 @@ vim.filetype.add({
 
 local group = vim.api.nvim_create_augroup("roslyn.nvim", { clear = true })
 
+-- Diagnostics version tracking: only refresh buffers that are "stale"
+local diag_version = 0
+local buf_diag_versions = {}
+
 -- Updates `vim.g.roslyn_nvim_selected_solution` when entering a C# or Razor buffer
 -- so that it always reflects the current buffers' solution.
+-- Also refreshes diagnostics if the buffer is stale (other buffers were modified since last refresh).
 vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
-    pattern = { "*.cs", ".*razor", "*.cshtml" },
+    pattern = { "*.cs", "*.razor", "*.cshtml" },
     callback = function(args)
         local client = vim.lsp.get_clients({ name = "roslyn", bufnr = args.buf })[1]
         if client then
             vim.g.roslyn_nvim_selected_solution = require("roslyn.store").get(client.id)
+            if buf_diag_versions[args.buf] ~= diag_version then
+                require("roslyn.lsp.diagnostics").refresh_buf(client, args.buf)
+                buf_diag_versions[args.buf] = diag_version
+            end
         end
     end,
 })
@@ -47,7 +56,9 @@ vim.api.nvim_create_autocmd("BufWritePost", {
     callback = function(args)
         local client = vim.lsp.get_clients({ name = "roslyn", bufnr = args.buf })[1]
         if client then
+            diag_version = diag_version + 1
             require("roslyn.lsp.diagnostics").refresh_buf(client, args.buf)
+            buf_diag_versions[args.buf] = diag_version
         end
     end,
 })
