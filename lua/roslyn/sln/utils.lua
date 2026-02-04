@@ -29,9 +29,9 @@ function M.find_files_with_extensions(dir, extensions)
 end
 
 ---@param targets string[]
----@param csproj? string
+---@param csprojs string[]
 ---@return string[]
-local function filter_targets(targets, csproj)
+local function filter_targets(targets, csprojs)
     local config = require("roslyn.config").get()
     return vim.iter(targets)
         :filter(function(target)
@@ -39,7 +39,17 @@ local function filter_targets(targets, csproj)
                 return false
             end
 
-            return not csproj or sln_api.exists_in_target(target, csproj)
+            if #csprojs == 0 then
+                return true
+            end
+
+            -- Check if any csproj exists in this target
+            for _, csproj in ipairs(csprojs) do
+                if sln_api.exists_in_target(target, csproj) then
+                    return true
+                end
+            end
+            return false
         end)
         :totable()
 end
@@ -133,9 +143,11 @@ function M.root_dir(bufnr)
         return vim.fs.dirname(solutions[1])
     end
 
-    local csproj = find_csproj_file(bufnr)
+    -- Get all csprojs from the shortest solution path directory
+    local sln_root = get_shortest_path(solutions)
+    local csprojs = sln_root and M.find_files_with_extensions(sln_root, { ".csproj" }) or {}
 
-    local filtered_targets = filter_targets(solutions, csproj)
+    local filtered_targets = filter_targets(solutions, csprojs)
     if #filtered_targets > 1 then
         local chosen = config.choose_target and config.choose_target(filtered_targets)
         if chosen then
@@ -169,7 +181,7 @@ function M.root_dir(bufnr)
     local selected_solution = vim.g.roslyn_nvim_selected_solution
     return vim.fs.dirname(filtered_targets[1])
         or selected_solution and vim.fs.dirname(selected_solution)
-        or csproj and vim.fs.dirname(csproj)
+        or csprojs[1] and vim.fs.dirname(csprojs[1])
 end
 
 ---@param bufnr number
@@ -178,15 +190,18 @@ end
 function M.predict_target(bufnr, targets)
     local config = require("roslyn.config").get()
 
-    local csproj = find_csproj_file(bufnr)
-    local filtered_targets = filter_targets(targets, csproj)
+    -- Get all csprojs from the target directory
+    local root_dir = get_shortest_path(targets)
+    local csprojs = root_dir and M.find_files_with_extensions(root_dir, { ".csproj" }) or {}
+
+    local filtered_targets = filter_targets(targets, csprojs)
     local result
     if #filtered_targets > 1 then
         result = config.choose_target and config.choose_target(filtered_targets) or nil
     else
         result = filtered_targets[1]
     end
-    log.log(string.format("predict_target targets: %s, result: %s", vim.inspect(targets), result))
+    log.log(string.format("predict_target targets: %s, csprojs: %s, result: %s", vim.inspect(targets), vim.inspect(csprojs), result))
     return result
 end
 
