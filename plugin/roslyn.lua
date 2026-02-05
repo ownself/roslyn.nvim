@@ -50,6 +50,7 @@ vim.api.nvim_create_autocmd("FileType", {
     end,
 })
 
+-- remove "InsertLeave" since Roslyn LSP handles that by push diagnostics
 vim.api.nvim_create_autocmd("BufWritePost", {
     group = group,
     pattern = { "*.cs", "*.razor", "*.cshtml" },
