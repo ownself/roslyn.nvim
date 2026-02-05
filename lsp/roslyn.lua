@@ -133,9 +133,17 @@ return {
             end
 
             local bufnr = vim.api.nvim_get_current_buf()
-            local files = config.broad_search
-                    and utils.find_solutions_broad(bufnr)
-                or utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
+
+            -- When prompt_target_on_multiple is enabled, use find_solutions to get all sln files (upward search)
+            -- Otherwise, only search in root_dir (one level)
+            local files
+            if config.prompt_target_on_multiple then
+                files = config.broad_search and utils.find_solutions_broad(bufnr) or utils.find_solutions(bufnr)
+            else
+                files = config.broad_search
+                        and utils.find_solutions_broad(bufnr)
+                    or utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
+            end
 
             -- If prompt_target_on_multiple is enabled and there are multiple sln files, prompt user to select
             if config.prompt_target_on_multiple and #files > 1 then

@@ -84,11 +84,20 @@ end
 ---@param bufnr number
 ---@return string[]
 function M.find_solutions(bufnr)
+    local cwd = vim.fs.normalize(vim.fn.getcwd())
     local results = vim.fs.find(function(name)
         return name:match("%.sln$") or name:match("%.slnx$") or name:match("%.slnf$")
     end, { upward = true, path = vim.api.nvim_buf_get_name(bufnr), limit = math.huge })
-    log.log(string.format("find_solutions found: %s", vim.inspect(results)))
-    return results
+
+    -- Filter to only include solutions within or at CWD
+    local filtered = vim.tbl_filter(function(sln_path)
+        local sln_dir = vim.fs.normalize(vim.fs.dirname(sln_path))
+        -- Check if sln_dir starts with cwd (is within or at CWD)
+        return sln_dir:find(cwd, 1, true) == 1
+    end, results)
+
+    log.log(string.format("find_solutions cwd: %s, found: %s, filtered: %s", cwd, vim.inspect(results), vim.inspect(filtered)))
+    return filtered
 end
 
 -- Dirs we are not looking for solutions inside
@@ -143,9 +152,10 @@ function M.root_dir(bufnr)
         return vim.fs.dirname(solutions[1])
     end
 
-    -- Get all csprojs from the shortest solution path directory
-    local sln_root = get_shortest_path(solutions)
-    local csprojs = sln_root and M.find_files_with_extensions(sln_root, { ".csproj" }) or {}
+    -- Get all csprojs from the nearest solution's directory
+    -- find_solutions returns results sorted from nearest to farthest (upward search)
+    local nearest_sln_dir = solutions[1] and vim.fs.dirname(solutions[1]) or nil
+    local csprojs = nearest_sln_dir and M.find_files_with_extensions(nearest_sln_dir, { ".csproj" }) or {}
 
     local filtered_targets = filter_targets(solutions, csprojs)
     if #filtered_targets > 1 then
@@ -170,9 +180,12 @@ function M.root_dir(bufnr)
             return possible_solutions[1]
         end
 
-        -- If prompt_target_on_multiple is enabled, return the sln_root to allow on_init to handle the selection
+        -- If prompt_target_on_multiple is enabled, return the first (nearest) solution's directory
+        -- to allow on_init to handle the selection
         if config.prompt_target_on_multiple then
-            return sln_root
+            -- filtered_targets is sorted by proximity (from find_solutions which uses upward search)
+            -- so the first one is the nearest to the current file
+            return vim.fs.dirname(filtered_targets[1])
         end
 
         vim.notify(
