@@ -170,6 +170,11 @@ function M.root_dir(bufnr)
             return possible_solutions[1]
         end
 
+        -- If prompt_target_on_multiple is enabled, return the sln_root to allow on_init to handle the selection
+        if config.prompt_target_on_multiple then
+            return sln_root
+        end
+
         vim.notify(
             "Multiple potential target files found. Use `:Roslyn target` to select a target.",
             vim.log.levels.INFO,

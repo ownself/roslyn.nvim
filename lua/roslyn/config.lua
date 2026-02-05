@@ -8,6 +8,7 @@ local M = {}
 ---@field lock_target boolean
 ---@field silent boolean
 ---@field debug boolean
+---@field prompt_target_on_multiple boolean
 
 ---@class RoslynNvimConfig
 ---@field filewatching? boolean | "auto" | "off" | "roslyn"
@@ -17,6 +18,7 @@ local M = {}
 ---@field lock_target? boolean
 ---@field silent? boolean
 ---@field debug? boolean
+---@field prompt_target_on_multiple? boolean
 
 ---@type InternalRoslynNvimConfig
 local roslyn_config = {
@@ -27,6 +29,7 @@ local roslyn_config = {
     lock_target = false,
     silent = false,
     debug = false,
+    prompt_target_on_multiple = false,
 }
 
 function M.get()

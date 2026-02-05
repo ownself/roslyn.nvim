@@ -132,9 +132,34 @@ return {
                 return on_init.sln(client, selected_solution)
             end
 
-            local files = utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
-
             local bufnr = vim.api.nvim_get_current_buf()
+            local files = config.broad_search
+                    and utils.find_solutions_broad(bufnr)
+                or utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
+
+            -- If prompt_target_on_multiple is enabled and there are multiple sln files, prompt user to select
+            if config.prompt_target_on_multiple and #files > 1 then
+                vim.schedule(function()
+                    vim.ui.select(files, {
+                        prompt = "Multiple solutions found. Select target: ",
+                        format_item = function(item)
+                            return vim.fn.fnamemodify(item, ":t")
+                        end,
+                    }, function(file)
+                        if file then
+                            on_init.sln(client, file)
+                        else
+                            -- User cancelled, fall back to csproj mode
+                            local csproj = utils.find_files_with_extensions(client.config.root_dir, { ".csproj" })
+                            if #csproj > 0 then
+                                on_init.project(client, csproj)
+                            end
+                        end
+                    end)
+                end)
+                return
+            end
+
             local solution = utils.predict_target(bufnr, files)
             if solution then
                 return on_init.sln(client, solution)
