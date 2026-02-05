@@ -124,6 +124,142 @@ local subcommand_tbl = {
             vim.lsp.enable("roslyn")
         end,
     },
+    config = {
+        impl = function()
+            local bufnr = vim.api.nvim_get_current_buf()
+            local client = vim.lsp.get_clients({ name = "roslyn", bufnr = bufnr })[1]
+
+            -- Find Directory.Build.targets or Directory.Build.props
+            local root_dir = client and client.config.root_dir or vim.fn.getcwd()
+            local build_files = vim.fs.find(
+                { "Directory.Build.targets", "Directory.Build.props" },
+                { upward = true, path = root_dir, limit = math.huge }
+            )
+
+            local configurations = { "Debug", "Release" } -- Default configurations
+
+            -- Try to parse Configurations from build files
+            for _, file in ipairs(build_files) do
+                local content = vim.fn.readfile(file)
+                for _, line in ipairs(content) do
+                    local configs = line:match("<Configurations>([^<]+)</Configurations>")
+                    if configs then
+                        configurations = vim.split(configs, ";", { trimempty = true })
+                        break
+                    end
+                end
+                if #configurations > 2 then
+                    break
+                end
+            end
+
+            local current_config = vim.env.Configuration or "Debug"
+
+            vim.ui.select(configurations, {
+                prompt = string.format("Select Configuration (current: %s): ", current_config),
+                format_item = function(item)
+                    if item == current_config then
+                        return item .. " (current)"
+                    end
+                    return item
+                end,
+            }, function(choice)
+                if not choice then
+                    return
+                end
+
+                if choice == current_config then
+                    vim.notify(
+                        "Configuration unchanged: " .. choice,
+                        vim.log.levels.INFO,
+                        { title = "roslyn.nvim" }
+                    )
+                    return
+                end
+
+                vim.env.Configuration = choice
+                vim.notify(
+                    "Configuration changed to: " .. choice .. ". Restarting LSP...",
+                    vim.log.levels.INFO,
+                    { title = "roslyn.nvim" }
+                )
+
+                -- Restart LSP to apply new configuration
+                if client then
+                    on_stopped(function()
+                        vim.lsp.enable("roslyn")
+                    end)
+                    local force_stop = vim.loop.os_uname().sysname == "Windows_NT"
+                    client:stop(force_stop)
+                else
+                    vim.lsp.enable("roslyn")
+                end
+            end)
+        end,
+    },
+    context = {
+        impl = function()
+            local bufnr = vim.api.nvim_get_current_buf()
+            local client = vim.lsp.get_clients({ name = "roslyn", bufnr = bufnr })[1]
+            if not client then
+                vim.notify("Roslyn LSP client not found", vim.log.levels.WARN, { title = "roslyn.nvim" })
+                return
+            end
+
+            local store = require("roslyn.store")
+            local utils = require("roslyn.sln.utils")
+            local sln_api = require("roslyn.sln.api")
+
+            local lines = { "Roslyn context info:" }
+
+            -- Configuration
+            local configuration = client.config.cmd_env and client.config.cmd_env.Configuration or "Debug"
+            table.insert(lines, string.format("  Configuration: %s", configuration))
+
+            -- Current solution
+            local solution = store.get(client.id)
+            if solution then
+                table.insert(lines, string.format("  Solution: %s", vim.fn.fnamemodify(solution, ":.")))
+
+                -- List projects in solution
+                local projects = sln_api.projects(solution)
+                if #projects > 0 then
+                    table.insert(lines, string.format("  Projects in solution (%d):", #projects))
+                    for i, proj in ipairs(projects) do
+                        table.insert(lines, string.format("    %d. %s", i, vim.fn.fnamemodify(proj, ":t")))
+                    end
+                end
+            else
+                table.insert(lines, "  Solution: (none - using project mode)")
+
+                -- Show csproj files in root_dir
+                if client.config.root_dir then
+                    local csprojs = utils.find_files_with_extensions(client.config.root_dir, { ".csproj" })
+                    if #csprojs > 0 then
+                        table.insert(lines, string.format("  Projects (%d):", #csprojs))
+                        for i, proj in ipairs(csprojs) do
+                            table.insert(lines, string.format("    %d. %s", i, vim.fn.fnamemodify(proj, ":t")))
+                        end
+                    end
+                end
+            end
+
+            -- Current file's nearest csproj
+            local file_path = vim.api.nvim_buf_get_name(bufnr)
+            local nearest_csproj = vim.fs.find(function(name)
+                return name:match("%.csproj$") ~= nil
+            end, { upward = true, path = file_path })[1]
+
+            if nearest_csproj then
+                table.insert(lines, string.format("  Nearest csproj: %s", vim.fn.fnamemodify(nearest_csproj, ":.")))
+            end
+
+            -- Root dir
+            table.insert(lines, string.format("  Root dir: %s", client.config.root_dir or "(unknown)"))
+
+            vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "roslyn.nvim" })
+        end,
+    },
 }
 
 ---@param opts table
