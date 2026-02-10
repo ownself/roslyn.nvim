@@ -158,6 +158,14 @@ function M.root_dir(bufnr)
     local csprojs = nearest_sln_dir and M.find_files_with_extensions(nearest_sln_dir, { ".csproj" }) or {}
 
     local filtered_targets = filter_targets(solutions, csprojs)
+
+    -- If all solutions were filtered out but we have solutions, use them directly
+    -- This can happen when csproj files are not found in solutions (e.g., Unity projects)
+    if #filtered_targets == 0 and #solutions > 0 then
+        log.log("filter_targets returned empty, falling back to unfiltered solutions")
+        filtered_targets = solutions
+    end
+
     if #filtered_targets > 1 then
         local chosen = config.choose_target and config.choose_target(filtered_targets)
         if chosen then
@@ -199,7 +207,34 @@ function M.root_dir(bufnr)
     local selected_solution = vim.g.roslyn_nvim_selected_solution
     return vim.fs.dirname(filtered_targets[1])
         or selected_solution and vim.fs.dirname(selected_solution)
+        or solutions[1] and vim.fs.dirname(solutions[1])
         or csprojs[1] and vim.fs.dirname(csprojs[1])
+end
+
+--- Returns the list of candidate solutions after applying filters (ignore_target, csproj matching).
+--- Used by the root_dir callback to determine if a prompt is needed.
+---@param bufnr number
+---@return string[]
+function M.get_filtered_solutions(bufnr)
+    local config = require("roslyn.config").get()
+    local solutions = config.broad_search and M.find_solutions_broad(bufnr) or M.find_solutions(bufnr)
+
+    if #solutions <= 1 then
+        return solutions
+    end
+
+    local nearest_sln_dir = solutions[1] and vim.fs.dirname(solutions[1]) or nil
+    local csprojs = nearest_sln_dir and M.find_files_with_extensions(nearest_sln_dir, { ".csproj" }) or {}
+
+    local filtered = filter_targets(solutions, csprojs)
+
+    -- If all solutions were filtered out but we have solutions, use them directly
+    if #filtered == 0 and #solutions > 0 then
+        log.log("get_filtered_solutions: filter_targets returned empty, falling back to unfiltered solutions")
+        return solutions
+    end
+
+    return #filtered > 0 and filtered or solutions
 end
 
 ---@param bufnr number

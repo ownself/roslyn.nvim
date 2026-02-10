@@ -54,6 +54,9 @@ local function get_default_cmd()
     return cmd
 end
 
+-- Tracks whether a prompt_target_on_multiple selection prompt is currently showing
+local _prompt_pending = false
+
 ---@type vim.lsp.Config
 return {
     name = "roslyn",
@@ -80,9 +83,10 @@ return {
         },
     },
     root_dir = function(bufnr, on_dir)
-        if require("roslyn.config").get().lock_target and vim.g.roslyn_nvim_selected_solution then
-            local root_dir = vim.fs.dirname(vim.g.roslyn_nvim_selected_solution)
-            on_dir(root_dir)
+        local config = require("roslyn.config").get()
+
+        if config.lock_target and vim.g.roslyn_nvim_selected_solution then
+            on_dir(vim.fs.dirname(vim.g.roslyn_nvim_selected_solution))
             return
         end
 
@@ -96,8 +100,65 @@ return {
             end
         end
 
-        local root_dir = require("roslyn.sln.utils").root_dir(bufnr)
-        on_dir(root_dir)
+        local utils = require("roslyn.sln.utils")
+
+        -- When prompt_target_on_multiple is enabled, handle solution selection
+        -- BEFORE creating the LSP client to avoid zombie clients
+        if config.prompt_target_on_multiple then
+            -- If a solution was already selected via prompt, reuse it
+            if vim.g.roslyn_nvim_selected_solution then
+                on_dir(vim.fs.dirname(vim.g.roslyn_nvim_selected_solution))
+                return
+            end
+
+            local solutions = utils.get_filtered_solutions(bufnr)
+
+            if #solutions > 1 then
+                -- A prompt is already showing, skip this buffer.
+                -- It will be attached after the user selects and the client is created.
+                if _prompt_pending then
+                    return
+                end
+
+                _prompt_pending = true
+                vim.schedule(function()
+                    vim.ui.select(solutions, {
+                        prompt = "Multiple solutions found. Select target: ",
+                        format_item = function(item)
+                            return vim.fn.fnamemodify(item, ":t")
+                        end,
+                    }, function(file)
+                        _prompt_pending = false
+                        if file then
+                            vim.g.roslyn_nvim_selected_solution = file
+                            on_dir(vim.fs.dirname(file))
+
+                            -- Re-trigger LSP attachment for buffers that were skipped during the prompt
+                            vim.schedule(function()
+                                for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                                    if vim.api.nvim_buf_is_loaded(buf) and buf ~= bufnr then
+                                        local ft = vim.bo[buf].filetype
+                                        if ft == "cs" or ft == "razor" then
+                                            vim.api.nvim_exec_autocmds("FileType", { buffer = buf })
+                                        end
+                                    end
+                                end
+                            end)
+                        end
+                    end)
+                end)
+                return
+            elseif #solutions == 1 then
+                on_dir(vim.fs.dirname(solutions[1]))
+                return
+            end
+            -- If no solutions found, fall through to normal root_dir logic
+        end
+
+        local root_dir = utils.root_dir(bufnr)
+        if root_dir then
+            on_dir(root_dir)
+        end
     end,
     on_init = {
         function(client)
@@ -128,45 +189,19 @@ return {
 
             local config = require("roslyn.config").get()
             local selected_solution = vim.g.roslyn_nvim_selected_solution
-            if config.lock_target and selected_solution then
+
+            -- When lock_target or prompt_target_on_multiple is enabled and a solution
+            -- was already selected (either previously or via the root_dir prompt),
+            -- use it directly to send solution/open immediately
+            if (config.lock_target or config.prompt_target_on_multiple) and selected_solution then
                 return on_init.sln(client, selected_solution)
             end
 
             local bufnr = vim.api.nvim_get_current_buf()
 
-            -- When prompt_target_on_multiple is enabled, use find_solutions to get all sln files (upward search)
-            -- Otherwise, only search in root_dir (one level)
-            local files
-            if config.prompt_target_on_multiple then
-                files = config.broad_search and utils.find_solutions_broad(bufnr) or utils.find_solutions(bufnr)
-            else
-                files = config.broad_search
-                        and utils.find_solutions_broad(bufnr)
-                    or utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
-            end
-
-            -- If prompt_target_on_multiple is enabled and there are multiple sln files, prompt user to select
-            if config.prompt_target_on_multiple and #files > 1 then
-                vim.schedule(function()
-                    vim.ui.select(files, {
-                        prompt = "Multiple solutions found. Select target: ",
-                        format_item = function(item)
-                            return vim.fn.fnamemodify(item, ":t")
-                        end,
-                    }, function(file)
-                        if file then
-                            on_init.sln(client, file)
-                        else
-                            -- User cancelled, fall back to csproj mode
-                            local csproj = utils.find_files_with_extensions(client.config.root_dir, { ".csproj" })
-                            if #csproj > 0 then
-                                on_init.project(client, csproj)
-                            end
-                        end
-                    end)
-                end)
-                return
-            end
+            local files = config.broad_search
+                    and utils.find_solutions_broad(bufnr)
+                or utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
 
             local solution = utils.predict_target(bufnr, files)
             if solution then
