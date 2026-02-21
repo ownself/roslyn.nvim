@@ -83,10 +83,9 @@ return {
         },
     },
     root_dir = function(bufnr, on_dir)
-        local config = require("roslyn.config").get()
-
-        if config.lock_target and vim.g.roslyn_nvim_selected_solution then
-            on_dir(vim.fs.dirname(vim.g.roslyn_nvim_selected_solution))
+        if require("roslyn.config").get().lock_target and vim.g.roslyn_nvim_selected_solution then
+            local root_dir = vim.fs.dirname(vim.g.roslyn_nvim_selected_solution)
+            on_dir(root_dir)
             return
         end
 
@@ -190,19 +189,13 @@ return {
             local config = require("roslyn.config").get()
             local selected_solution = vim.g.roslyn_nvim_selected_solution
 
-            -- When lock_target or prompt_target_on_multiple is enabled and a solution
-            -- was already selected (either previously or via the root_dir prompt),
-            -- use it directly to send solution/open immediately
             if (config.lock_target or config.prompt_target_on_multiple) and selected_solution then
                 return on_init.sln(client, selected_solution)
             end
 
+            local files = utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
+
             local bufnr = vim.api.nvim_get_current_buf()
-
-            local files = config.broad_search
-                    and utils.find_solutions_broad(bufnr)
-                or utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
-
             local solution = utils.predict_target(bufnr, files)
             if solution then
                 return on_init.sln(client, solution)
