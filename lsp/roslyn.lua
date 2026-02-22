@@ -99,62 +99,7 @@ return {
             end
         end
 
-        local utils = require("roslyn.sln.utils")
-
-        -- When prompt_target_on_multiple is enabled, handle solution selection
-        -- BEFORE creating the LSP client to avoid zombie clients
-        if config.prompt_target_on_multiple then
-            -- If a solution was already selected via prompt, reuse it
-            if vim.g.roslyn_nvim_selected_solution then
-                on_dir(vim.fs.dirname(vim.g.roslyn_nvim_selected_solution))
-                return
-            end
-
-            local solutions = utils.get_filtered_solutions(bufnr)
-
-            if #solutions > 1 then
-                -- A prompt is already showing, skip this buffer.
-                -- It will be attached after the user selects and the client is created.
-                if _prompt_pending then
-                    return
-                end
-
-                _prompt_pending = true
-                vim.schedule(function()
-                    vim.ui.select(solutions, {
-                        prompt = "Multiple solutions found. Select target: ",
-                        format_item = function(item)
-                            return vim.fn.fnamemodify(item, ":t")
-                        end,
-                    }, function(file)
-                        _prompt_pending = false
-                        if file then
-                            vim.g.roslyn_nvim_selected_solution = file
-                            on_dir(vim.fs.dirname(file))
-
-                            -- Re-trigger LSP attachment for buffers that were skipped during the prompt
-                            vim.schedule(function()
-                                for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-                                    if vim.api.nvim_buf_is_loaded(buf) and buf ~= bufnr then
-                                        local ft = vim.bo[buf].filetype
-                                        if ft == "cs" or ft == "razor" then
-                                            vim.api.nvim_exec_autocmds("FileType", { buffer = buf })
-                                        end
-                                    end
-                                end
-                            end)
-                        end
-                    end)
-                end)
-                return
-            elseif #solutions == 1 then
-                on_dir(vim.fs.dirname(solutions[1]))
-                return
-            end
-            -- If no solutions found, fall through to normal root_dir logic
-        end
-
-        local root_dir = utils.root_dir(bufnr)
+        local root_dir = require("roslyn.lsp.customized_utils").root_dir(bufnr, on_dir)
         if root_dir then
             on_dir(root_dir)
         end
@@ -183,7 +128,7 @@ return {
             end
             require("roslyn.log").log(string.format("lsp on_init root_dir: %s", client.config.root_dir))
 
-            local utils = require("roslyn.sln.utils")
+            local utils = require("roslyn.lsp.customized_utils")
             local on_init = require("roslyn.lsp.on_init")
 
             local config = require("roslyn.config").get()
