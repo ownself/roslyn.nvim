@@ -197,6 +197,153 @@ local subcommand_tbl = {
             end)
         end,
     },
+    unityslnf = {
+        impl = function()
+            local bufnr = vim.api.nvim_get_current_buf()
+            local client = vim.lsp.get_clients({ name = "roslyn", bufnr = bufnr })[1]
+            local root_dir = client and client.config.root_dir or vim.fn.getcwd()
+
+            -- Find .sln files in root_dir (non-recursive)
+            local sln_files = {}
+            for entry, entry_type in vim.fs.dir(root_dir) do
+                if entry_type == "file" and entry:match("%.sln$") then
+                    sln_files[#sln_files + 1] = vim.fs.normalize(vim.fs.joinpath(root_dir, entry))
+                end
+            end
+
+            if #sln_files == 0 then
+                vim.notify("No .sln files found in: " .. root_dir, vim.log.levels.WARN, { title = "roslyn.nvim" })
+                return
+            end
+
+            local total_generated = 0
+
+            for _, sln_path in ipairs(sln_files) do
+                local sln_name = vim.fs.basename(sln_path)
+
+                -- Parse .sln to extract csproj paths (relative paths as written in sln)
+                local file = io.open(sln_path, "r")
+                if not file then
+                    vim.notify("Cannot open: " .. sln_name, vim.log.levels.WARN, { title = "roslyn.nvim" })
+                    goto continue_sln
+                end
+
+                local all_projects = {}
+                local pattern = 'Project%("{[^}]+}"%)[^=]*=%s*"[^"]+"%s*,%s*"([^"]+%.csproj)"%s*,%s*"{[^}]+}"'
+                for line in file:lines() do
+                    local csproj_path = line:match(pattern)
+                    if csproj_path then
+                        all_projects[#all_projects + 1] = csproj_path
+                    end
+                end
+                file:close()
+
+                if #all_projects == 0 then
+                    vim.notify("No projects found in: " .. sln_name, vim.log.levels.INFO, { title = "roslyn.nvim" })
+                    goto continue_sln
+                end
+
+                -- Classify projects by Unity naming convention
+                local has_player = false
+                local has_editor = false
+                local player_projects = {}
+                local editor_projects = {}
+                local common_projects = {}
+
+                for _, proj in ipairs(all_projects) do
+                    local proj_filename = vim.fs.basename(proj)
+                    if proj_filename:match("%.Player%.csproj$") then
+                        has_player = true
+                        player_projects[#player_projects + 1] = proj
+                    elseif proj_filename:match("%.Editor%.csproj$") then
+                        has_editor = true
+                        editor_projects[#editor_projects + 1] = proj
+                    else
+                        common_projects[#common_projects + 1] = proj
+                    end
+                end
+
+                if not (has_player and has_editor) then
+                    vim.notify(
+                        sln_name .. ": No Editor/Player project pair found, skipping",
+                        vim.log.levels.INFO,
+                        { title = "roslyn.nvim" }
+                    )
+                    goto continue_sln
+                end
+
+                -- Common projects go into both groups
+                vim.list_extend(player_projects, common_projects)
+                vim.list_extend(editor_projects, common_projects)
+
+                table.sort(player_projects)
+                table.sort(editor_projects)
+
+                local sln_base = sln_name:match("^(.+)%.sln$")
+                local sln_dir = vim.fs.dirname(sln_path)
+
+                -- Generate .slnf files
+                local function write_slnf(projects, slnf_name)
+                    -- Build JSON string with indentation matching Python's json.dump(indent=2)
+                    local rel_sln = sln_name:gsub("\\", "/")
+                    local proj_lines = {}
+                    for _, p in ipairs(projects) do
+                        proj_lines[#proj_lines + 1] = string.format('      "%s"', p:gsub("\\", "/"))
+                    end
+
+                    local json_str = "{\n"
+                        .. '  "solution": {\n'
+                        .. string.format('    "path": "%s",\n', rel_sln)
+                        .. '    "projects": [\n'
+                        .. table.concat(proj_lines, ",\n")
+                        .. "\n    ]\n"
+                        .. "  }\n"
+                        .. "}\n"
+
+                    local slnf_path = vim.fs.joinpath(sln_dir, slnf_name)
+                    local out = io.open(slnf_path, "w")
+                    if not out then
+                        vim.notify("Cannot write: " .. slnf_name, vim.log.levels.ERROR, { title = "roslyn.nvim" })
+                        return false
+                    end
+                    out:write(json_str)
+                    out:close()
+                    return true
+                end
+
+                local editor_slnf = sln_base .. ".Editor.slnf"
+                local player_slnf = sln_base .. ".Player.slnf"
+
+                if write_slnf(editor_projects, editor_slnf) then
+                    total_generated = total_generated + 1
+                    vim.notify(
+                        string.format("Generated: %s (%d projects)", editor_slnf, #editor_projects),
+                        vim.log.levels.INFO,
+                        { title = "roslyn.nvim" }
+                    )
+                end
+
+                if write_slnf(player_projects, player_slnf) then
+                    total_generated = total_generated + 1
+                    vim.notify(
+                        string.format("Generated: %s (%d projects)", player_slnf, #player_projects),
+                        vim.log.levels.INFO,
+                        { title = "roslyn.nvim" }
+                    )
+                end
+
+                ::continue_sln::
+            end
+
+            if total_generated > 0 then
+                vim.notify(
+                    string.format("Done! Generated %d .slnf file(s)", total_generated),
+                    vim.log.levels.INFO,
+                    { title = "roslyn.nvim" }
+                )
+            end
+        end,
+    },
     context = {
         impl = function()
             local bufnr = vim.api.nvim_get_current_buf()
