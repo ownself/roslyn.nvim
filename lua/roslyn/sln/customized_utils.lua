@@ -62,7 +62,11 @@ function M.find_solutions(bufnr)
     return filtered
 end
 
-function M.handle_prompt_target_on_multiple(bufnr, on_dir, config)
+---@param bufnr number
+---@param targets string[]
+---@param on_dir fun(path: string|nil)
+function M.handle_prompt_target_on_multiple(bufnr, targets, on_dir)
+    local config = require("roslyn.config").get()
     if not config.prompt_target_on_multiple then
         return false
     end
@@ -72,15 +76,14 @@ function M.handle_prompt_target_on_multiple(bufnr, on_dir, config)
         return true
     end
 
-    local solutions = M.get_filtered_solutions(bufnr)
-    if #solutions > 1 then
+    if #targets > 1 then
         if _prompt_pending then
             return true
         end
 
         _prompt_pending = true
         vim.schedule(function()
-            vim.ui.select(solutions, {
+            vim.ui.select(targets, {
                 prompt = "Multiple solutions found. Select target: ",
                 format_item = function(item)
                     return vim.fn.fnamemodify(item, ":t")
@@ -103,9 +106,6 @@ function M.handle_prompt_target_on_multiple(bufnr, on_dir, config)
                 end
             end)
         end)
-        return true
-    elseif #solutions == 1 then
-        on_dir(vim.fs.dirname(solutions[1]))
         return true
     end
 
@@ -139,10 +139,6 @@ end
 ---@return string?
 function M.root_dir(bufnr, on_dir)
     local config = require("roslyn.config").get()
-    if on_dir and M.handle_prompt_target_on_multiple(bufnr, on_dir, config) then
-        return nil
-    end
-
     local solutions = config.broad_search and M.find_solutions_broad(bufnr) or M.find_solutions(bufnr)
     if #solutions == 1 then
         return vim.fs.dirname(solutions[1])
@@ -171,8 +167,8 @@ function M.root_dir(bufnr, on_dir)
             return possible_solutions[1]
         end
 
-        if config.prompt_target_on_multiple then
-            return vim.fs.dirname(filtered_targets[1])
+        if on_dir and M.handle_prompt_target_on_multiple(bufnr, filtered_targets, on_dir) then
+            return nil
         end
 
         vim.notify(
