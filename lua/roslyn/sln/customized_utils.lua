@@ -4,12 +4,6 @@ local sln_utils = require("roslyn.sln.utils")
 
 local M = setmetatable({}, { __index = sln_utils })
 
-local ignored_dirs = {
-    "obj",
-    "bin",
-    ".git",
-}
-
 ---@param targets string[]
 ---@param csprojs string[]
 ---@return string[]
@@ -35,8 +29,6 @@ local function filter_targets(targets, csprojs)
         :totable()
 end
 
----@param paths string[]
----@return string?
 -- Tracks whether a solution selection prompt is currently showing
 local _prompt_pending = false
 
@@ -154,28 +146,6 @@ function M.handle_project_selection(bufnr, csprojs, on_dir)
 end
 
 ---@param bufnr number
----@return string[]
-function M.get_filtered_solutions(bufnr)
-    local config = require("roslyn.config").get()
-    local solutions = config.broad_search and M.find_solutions_broad(bufnr) or M.find_solutions(bufnr)
-
-    if #solutions <= 1 then
-        return solutions
-    end
-
-    local nearest_sln_dir = solutions[1] and vim.fs.dirname(solutions[1]) or nil
-    local csprojs = nearest_sln_dir and M.find_files_with_extensions(nearest_sln_dir, { ".csproj" }) or {}
-    local filtered = filter_targets(solutions, csprojs)
-
-    if #filtered == 0 and #solutions > 0 then
-        log.log("get_filtered_solutions: filter_targets returned empty, falling back to unfiltered solutions")
-        return solutions
-    end
-
-    return #filtered > 0 and filtered or solutions
-end
-
----@param bufnr number
 ---@param on_dir? fun(path: string|nil)
 ---@return string?
 function M.root_dir(bufnr, on_dir)
@@ -256,20 +226,6 @@ function M.root_dir(bufnr, on_dir)
         { title = "roslyn.nvim" }
     )
     return nil
-end
-
----@param bufnr number
----@param targets string[]
----@return string?
-function M.predict_target(bufnr, targets)
-    local config = require("roslyn.config").get()
-    local root_dir = get_shortest_path(targets)
-    local csprojs = root_dir and M.find_files_with_extensions(root_dir, { ".csproj" }) or {}
-    local filtered_targets = filter_targets(targets, csprojs)
-
-    local result = #filtered_targets > 1 and nil or filtered_targets[1]
-    log.log(string.format("predict_target targets: %s, csprojs: %s, result: %s", vim.inspect(targets), vim.inspect(csprojs), result))
-    return result
 end
 
 return M
