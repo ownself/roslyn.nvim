@@ -99,7 +99,7 @@ return {
             end
         end
 
-        local root_dir = require("roslyn.lsp.customized_utils").root_dir(bufnr, on_dir)
+        local root_dir = require("roslyn.sln.customized_utils").root_dir(bufnr, on_dir)
         if root_dir then
             on_dir(root_dir)
         end
@@ -128,7 +128,7 @@ return {
             end
             require("roslyn.log").log(string.format("lsp on_init root_dir: %s", client.config.root_dir))
 
-            local utils = require("roslyn.lsp.customized_utils")
+            local utils = require("roslyn.sln.customized_utils")
             local on_init = require("roslyn.lsp.on_init")
 
             local config = require("roslyn.config").get()

@@ -158,11 +158,6 @@ function M.root_dir(bufnr, on_dir)
     end
 
     if #filtered_targets > 1 then
-        local chosen = config.choose_target and config.choose_target(filtered_targets)
-        if chosen then
-            return vim.fs.dirname(chosen)
-        end
-
         local possible_solutions = vim.iter(vim.lsp.get_clients({ name = "roslyn" }))
             :map(function(client)
                 local client_solution = require("roslyn.store").get(client.id)
@@ -204,12 +199,7 @@ function M.predict_target(bufnr, targets)
     local csprojs = root_dir and M.find_files_with_extensions(root_dir, { ".csproj" }) or {}
     local filtered_targets = filter_targets(targets, csprojs)
 
-    local result
-    if #filtered_targets > 1 then
-        result = config.choose_target and config.choose_target(filtered_targets) or nil
-    else
-        result = filtered_targets[1]
-    end
+    local result = #filtered_targets > 1 and nil or filtered_targets[1]
     log.log(string.format("predict_target targets: %s, csprojs: %s, result: %s", vim.inspect(targets), vim.inspect(csprojs), result))
     return result
 end

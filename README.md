@@ -129,19 +129,6 @@ opts = {
     -- - "off": Hack to turn off all filewatching. (Can be used if you notice performance issues)
     filewatching = "auto",
 
-    -- Optional function that takes an array of targets as the only argument. Return the target you
-    -- want to use. If it returns `nil`, then it falls back to guessing the target like normal
-    -- Example:
-    --
-    -- choose_target = function(target)
-    --     return vim.iter(target):find(function(item)
-    --         if string.match(item, "Foo.sln") then
-    --             return item
-    --         end
-    --     end)
-    -- end
-    choose_target = nil,
-
     -- Optional function that takes the selected target as the only argument.
     -- Returns a boolean of whether it should be ignored to attach to or not
     --
