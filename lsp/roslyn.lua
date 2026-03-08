@@ -119,28 +119,25 @@ return {
             end
             require("roslyn.log").log(string.format("lsp on_init root_dir: %s", client.config.root_dir))
 
-            local utils = require("roslyn.sln.customized_utils")
             local on_init = require("roslyn.lsp.on_init")
             local store = require("roslyn.store")
 
-            local cached_target = store.get_target_for_root_dir(client.config.root_dir)
+            local cached_target = store.get_resolved_target(client.config.root_dir)
 
-            if cached_target then
-                return on_init.sln(client, cached_target)
+            if not cached_target then
+                require("roslyn.log").log(string.format("lsp on_init missing cached target for root_dir: %s", client.config.root_dir))
+                return
             end
 
-            local files = utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })
-
-            local bufnr = vim.api.nvim_get_current_buf()
-            local solution = utils.predict_target(bufnr, files)
-            if solution then
-                return on_init.sln(client, solution)
+            if cached_target.kind == "solution" then
+                return on_init.sln(client, cached_target.target)
             end
 
-            local csproj = utils.find_files_with_extensions(client.config.root_dir, { ".csproj" })
-            if #csproj > 0 then
-                return on_init.project(client, csproj)
+            if cached_target.kind == "project" then
+                return on_init.project(client, { cached_target.target })
             end
+
+            require("roslyn.log").log(string.format("lsp on_init unknown cached target kind: %s", vim.inspect(cached_target)))
         end,
     },
     on_exit = {

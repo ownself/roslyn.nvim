@@ -4,6 +4,12 @@ local sln_utils = require("roslyn.sln.utils")
 
 local M = setmetatable({}, { __index = sln_utils })
 
+local ignored_dirs = {
+    "obj",
+    "bin",
+    ".git",
+}
+
 ---@param targets string[]
 ---@param csprojs string[]
 ---@return string[]
@@ -31,19 +37,91 @@ end
 
 ---@param paths string[]
 ---@return string?
-local function get_shortest_path(paths)
-    local shortest = nil
-    for _, path in ipairs(paths) do
-        local dir = vim.fs.dirname(path)
-        if not shortest or #dir < #shortest then
-            shortest = dir
-        end
-    end
-    return shortest
-end
-
 -- Tracks whether a solution selection prompt is currently showing
 local _prompt_pending = false
+
+---@param bufnr number
+---@return string[]
+local function find_upward_csprojs(bufnr)
+    local buf_path = vim.api.nvim_buf_get_name(bufnr)
+    local dir = vim.fs.dirname(buf_path)
+    local csprojs = {}
+    local seen = {}
+
+    while dir and dir ~= "" do
+        for entry, entry_type in vim.fs.dir(dir) do
+            if entry_type == "file" and entry:match("%.csproj$") then
+                local path = vim.fs.normalize(vim.fs.joinpath(dir, entry))
+                if not seen[path] then
+                    seen[path] = true
+                    csprojs[#csprojs + 1] = path
+                end
+            end
+        end
+
+        local parent = vim.fs.dirname(dir)
+        if not parent or parent == dir then
+            break
+        end
+        dir = parent
+    end
+
+    log.log(string.format("find_upward_csprojs buf: %s, found: %s", buf_path, vim.inspect(csprojs)))
+    return csprojs
+end
+
+---@param root_dir string
+---@param resolved_target { kind: "solution" | "project", target: string }
+local function cache_resolved_target(root_dir, resolved_target)
+    local store = require("roslyn.store")
+    store.set_resolved_target(root_dir, resolved_target)
+
+    if resolved_target.kind == "solution" then
+        vim.g.roslyn_nvim_selected_solution = resolved_target.target
+    end
+end
+
+---@param bufnr number
+---@param targets string[]
+---@param on_dir fun(path: string|nil)
+---@param kind "solution" | "project"
+---@param prompt string
+---@param format_item? fun(item: string): string
+local function prompt_for_target_selection(bufnr, targets, on_dir, kind, prompt, format_item)
+    if #targets <= 1 then
+        return false
+    end
+
+    if _prompt_pending then
+        return true
+    end
+
+    _prompt_pending = true
+    vim.schedule(function()
+        vim.ui.select(targets, {
+            prompt = prompt,
+            format_item = format_item,
+        }, function(file)
+            _prompt_pending = false
+            if file then
+                local root_dir = vim.fs.dirname(file)
+                cache_resolved_target(root_dir, { kind = kind, target = file })
+                on_dir(root_dir)
+                vim.schedule(function()
+                    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+                        if vim.api.nvim_buf_is_loaded(buf) and buf ~= bufnr then
+                            local ft = vim.bo[buf].filetype
+                            if ft == "cs" or ft == "razor" then
+                                vim.api.nvim_exec_autocmds("FileType", { buffer = buf })
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    end)
+    return true
+end
 
 ---@param bufnr number
 ---@return string[]
@@ -62,48 +140,20 @@ function M.find_solutions(bufnr)
     return filtered
 end
 
----@param bufnr number
----@param targets string[]
----@param on_dir fun(path: string|nil)
 function M.handle_target_selection(bufnr, targets, on_dir)
-    local store = require("roslyn.store")
+    return prompt_for_target_selection(bufnr, targets, on_dir, "solution", "Multiple solutions found. Select target: ", function(item)
+        return vim.fn.fnamemodify(item, ":t")
+    end)
+end
 
-    if #targets > 1 then
-        if _prompt_pending then
-            return true
-        end
-
-        _prompt_pending = true
-        vim.schedule(function()
-            vim.ui.select(targets, {
-                prompt = "Multiple solutions found. Select target: ",
-                format_item = function(item)
-                    return vim.fn.fnamemodify(item, ":t")
-                end,
-            }, function(file)
-                _prompt_pending = false
-                if file then
-                    local root_dir = vim.fs.dirname(file)
-                    vim.g.roslyn_nvim_selected_solution = file
-                    store.set_target_for_root_dir(root_dir, file)
-                    on_dir(root_dir)
-                    vim.schedule(function()
-                        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-                            if vim.api.nvim_buf_is_loaded(buf) and buf ~= bufnr then
-                                local ft = vim.bo[buf].filetype
-                                if ft == "cs" or ft == "razor" then
-                                    vim.api.nvim_exec_autocmds("FileType", { buffer = buf })
-                                end
-                            end
-                        end
-                    end)
-                end
-            end)
-        end)
-        return true
-    end
-
-    return false
+---@param bufnr number
+---@param csprojs string[]
+---@param on_dir fun(path: string|nil)
+---@return boolean
+function M.handle_project_selection(bufnr, csprojs, on_dir)
+    return prompt_for_target_selection(bufnr, csprojs, on_dir, "project", "Multiple projects found. Select target: ", function(item)
+        return vim.fn.fnamemodify(item, ":.")
+    end)
 end
 
 ---@param bufnr number
@@ -133,21 +183,38 @@ end
 ---@return string?
 function M.root_dir(bufnr, on_dir)
     local config = require("roslyn.config").get()
-    local store = require("roslyn.store")
     local solutions = config.broad_search and M.find_solutions_broad(bufnr) or M.find_solutions(bufnr)
+
     if #solutions == 1 then
         local root_dir = vim.fs.dirname(solutions[1])
-        store.set_target_for_root_dir(root_dir, solutions[1])
+        cache_resolved_target(root_dir, { kind = "solution", target = solutions[1] })
         return root_dir
     end
 
-    local nearest_sln_dir = solutions[1] and vim.fs.dirname(solutions[1]) or nil
-    local csprojs = nearest_sln_dir and M.find_files_with_extensions(nearest_sln_dir, { ".csproj" }) or {}
+    local csprojs = find_upward_csprojs(bufnr)
+
+    if #csprojs == 0 then
+        if #solutions > 1 then
+            if on_dir and M.handle_target_selection(bufnr, solutions, on_dir) then
+                return nil
+            end
+
+            vim.notify(
+                "Multiple potential target files found. Use `:Roslyn target` to select a target.",
+                vim.log.levels.INFO,
+                { title = "roslyn.nvim" }
+            )
+        end
+
+        return nil
+    end
+
     local filtered_targets = filter_targets(solutions, csprojs)
 
-    if #filtered_targets == 0 and #solutions > 0 then
-        log.log("filter_targets returned empty, falling back to unfiltered solutions")
-        filtered_targets = solutions
+    if #filtered_targets == 1 then
+        local root_dir = vim.fs.dirname(filtered_targets[1])
+        cache_resolved_target(root_dir, { kind = "solution", target = filtered_targets[1] })
+        return root_dir
     end
 
     if #filtered_targets > 1 then
@@ -176,16 +243,22 @@ function M.root_dir(bufnr, on_dir)
         return nil
     end
 
-    local root_dir = vim.fs.dirname(filtered_targets[1])
-        or solutions[1] and vim.fs.dirname(solutions[1])
-        or csprojs[1] and vim.fs.dirname(csprojs[1])
-
-    local target = filtered_targets[1] or solutions[1]
-    if root_dir and target then
-        store.set_target_for_root_dir(root_dir, target)
+    if #csprojs == 1 then
+        local root_dir = vim.fs.dirname(csprojs[1])
+        cache_resolved_target(root_dir, { kind = "project", target = csprojs[1] })
+        return root_dir
     end
 
-    return root_dir
+    if on_dir and M.handle_project_selection(bufnr, csprojs, on_dir) then
+        return nil
+    end
+
+    vim.notify(
+        "Multiple project files found. Use `:Roslyn target` to select a target.",
+        vim.log.levels.INFO,
+        { title = "roslyn.nvim" }
+    )
+    return nil
 end
 
 ---@param bufnr number

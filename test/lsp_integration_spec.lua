@@ -86,6 +86,63 @@ describe("LSP integration with mock server", function()
         end)
         assert.are_equal(1, #notifications)
         assert.are_equal("project/open", notifications[1].method)
+
+        local resolved = helpers.exec_lua(function()
+            return require("roslyn.store").get_resolved_target(vim.fs.joinpath(vim.fn.getcwd(), "Bar"))
+        end)
+        assert.are_same({ kind = "project", target = vim.fs.joinpath(scratch, "Bar", "Bar.csproj") }, resolved)
+    end)
+
+    it("prompts for project selection when no solutions match and multiple csproj exist", function()
+        create_file("src/App/Program.cs")
+        create_file("src/App/App.csproj")
+        create_file("src/Lib/Lib.csproj")
+
+        helpers.exec_lua(function(selected)
+            local original_select = vim.ui.select
+            vim.ui.select = function(items, opts, on_choice)
+                vim.g.roslyn_test_last_project_select_items = items
+                vim.g.roslyn_test_last_project_select_prompt = opts.prompt
+                on_choice(selected)
+                vim.ui.select = original_select
+            end
+        end, vim.fs.joinpath(scratch, "src", "App", "App.csproj"))
+
+        command("edit " .. vim.fs.joinpath(helpers.scratch, "src", "App", "Program.cs"))
+
+        helpers.exec_lua(function()
+            vim.wait(1000, function()
+                return #require("test.utils.mock_server").notifications > 0
+            end)
+        end)
+
+        local notifications = helpers.exec_lua(function()
+            return require("test.utils.mock_server").notifications
+        end)
+        assert.are_equal(1, #notifications)
+        assert.are_equal("project/open", notifications[1].method)
+        assert.are_same({ to_uri(vim.fs.joinpath(scratch, "src", "App", "App.csproj")) }, notifications[1].params.projects)
+
+        local selection_state = helpers.exec_lua(function()
+            local store = require("roslyn.store")
+            return {
+                selected_solution = vim.g.roslyn_nvim_selected_solution,
+                cached_target = store.get_resolved_target(vim.fs.joinpath(vim.fn.getcwd(), "src", "App")),
+                prompt = vim.g.roslyn_test_last_project_select_prompt,
+                items = vim.g.roslyn_test_last_project_select_items,
+            }
+        end)
+
+        assert.is_nil(selection_state.selected_solution)
+        assert.are_same({ kind = "project", target = vim.fs.joinpath(scratch, "src", "App", "App.csproj") }, selection_state.cached_target)
+        assert.are_equal("Multiple projects found. Select target: ", selection_state.prompt)
+        assert.are_same(
+            {
+                vim.fs.joinpath(scratch, "src", "App", "App.csproj"),
+                vim.fs.joinpath(scratch, "src", "Lib", "Lib.csproj"),
+            },
+            selection_state.items
+        )
     end)
 
     it("reuses same client when opening another file in same solution", function()
@@ -225,7 +282,7 @@ describe("LSP integration with mock server", function()
             local store = require("roslyn.store")
             return {
                 notifications = require("test.utils.mock_server").notifications,
-                cached_target = store.get_target_for_root_dir(vim.fs.joinpath(vim.fn.getcwd(), "src")),
+                cached_target = store.get_resolved_target(vim.fs.joinpath(vim.fn.getcwd(), "src")),
                 prompted = vim.g.roslyn_test_global_override_prompted,
                 selected_solution = vim.g.roslyn_nvim_selected_solution,
             }
@@ -321,14 +378,14 @@ describe("LSP integration with mock server", function()
             local store = require("roslyn.store")
             return {
                 selected_solution = vim.g.roslyn_nvim_selected_solution,
-                cached_target = store.get_target_for_root_dir(vim.fs.joinpath(vim.fn.getcwd(), "src")),
+                cached_target = store.get_resolved_target(vim.fs.joinpath(vim.fn.getcwd(), "src")),
                 prompt = vim.g.roslyn_test_last_select_prompt,
                 items = vim.g.roslyn_test_last_select_items,
             }
         end)
 
         assert.are_equal(vim.fs.joinpath(scratch, "Bar.sln"), selection_state.selected_solution)
-        assert.are_equal(vim.fs.joinpath(scratch, "Bar.sln"), selection_state.cached_target)
+        assert.are_same({ kind = "solution", target = vim.fs.joinpath(scratch, "Bar.sln") }, selection_state.cached_target)
         assert.are_equal("Multiple solutions found. Select target: ", selection_state.prompt)
         assert.are_same({ vim.fs.joinpath(scratch, "Foo.sln"), vim.fs.joinpath(scratch, "Bar.sln") }, selection_state.items)
 
@@ -388,14 +445,14 @@ describe("LSP integration with mock server", function()
             local notifications = require("test.utils.mock_server").notifications
             return {
                 select_call_count = vim.g.roslyn_test_select_call_count,
-                cached_target = store.get_target_for_root_dir(vim.fs.joinpath(vim.fn.getcwd(), "src")),
+                cached_target = store.get_resolved_target(vim.fs.joinpath(vim.fn.getcwd(), "src")),
                 selected_solution = vim.g.roslyn_nvim_selected_solution,
                 notifications = notifications,
             }
         end)
 
         assert.are_equal(1, state.select_call_count)
-        assert.are_equal(vim.fs.joinpath(scratch, "Bar.sln"), state.cached_target)
+        assert.are_same({ kind = "solution", target = vim.fs.joinpath(scratch, "Bar.sln") }, state.cached_target)
         assert.are_equal(vim.fs.joinpath(scratch, "Bar.sln"), state.selected_solution)
         assert.are_equal(1, #state.notifications)
         assert.are_equal("solution/open", state.notifications[1].method)
