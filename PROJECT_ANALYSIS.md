@@ -103,9 +103,9 @@ roslyn.nvim/
 - 配置 Razor 协同托管
 
 **根目录解析**:
-- 检查通过 `vim.g.roslyn_nvim_selected_solution` 锁定的目标
 - 处理源代码生成文件 (`roslyn-source-generated://*` 协议)
-- 调用 `utils.root_dir()` 进行自动解决方案检测
+- 调用 `customized_utils.root_dir()` 进行自动解决方案检测
+- 当多个解决方案在过滤后仍无法唯一确定时，提示用户选择，并缓存 `root_dir -> target`
 
 ### 3. 解决方案/项目发现 (sln/)
 
@@ -170,7 +170,7 @@ vim.lsp.get_clients() 触发客户端启动
     ↓
 lsp/roslyn.lua root_dir() 被调用
     ↓
-sln/utils.lua 查找解决方案/项目
+    sln/customized_utils.lua 查找解决方案/项目
     ↓
 on_init.lua.sln() 或 .project() 被调用
     ↓
@@ -233,20 +233,12 @@ require("roslyn").setup({
     -- "off": 关闭文件监视
     filewatching = "auto",
 
-    -- 当发现多个解决方案时的选择函数
-    -- function(targets) -> target
-    choose_target = nil,
-
     -- 过滤要忽略的解决方案
     -- function(target) -> boolean
     ignore_target = nil,
 
     -- 是否递归搜索解决方案（而不是只向上搜索）
     broad_search = false,
-
-    -- 锁定到特定解决方案
-    -- 使用 vim.g.roslyn_nvim_selected_solution
-    lock_target = false,
 
     -- 抑制初始化通知
     silent = false,
@@ -282,6 +274,8 @@ require("roslyn").setup({
 - 检测和管理不同解决方案的多个 LSP 客户端
 - 每个客户端维护自己的 root_dir 和附加的缓冲区
 - 智能重用逻辑：在可能时尝试重用现有客户端
+- 当多个候选解仍然冲突时，自动弹出选择框
+- 用户选择会缓存到 `root_dir -> target` 映射，并用于后续 on_init
 - `:Roslyn target` 命令允许手动选择
 
 ### 2. 源代码生成文件
@@ -308,14 +302,6 @@ require("roslyn").setup({
 
 - 在 `BufWritePost` 和 `InsertLeave` 时手动刷新
 - 通过 `textDocument/diagnostic` 请求新诊断
-
-### 6. 解决方案锁定
-
-- `lock_target` 选项将客户端固定到特定解决方案
-- 存储在 `vim.g.roslyn_nvim_selected_solution`
-- 适用于一致的多解决方案设置
-
----
 
 ## 测试结构
 

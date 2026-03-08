@@ -145,17 +145,7 @@ describe("predicts", function()
         assert.are_same(vim.fs.joinpath(scratch, "FooBar.sln"), target)
     end)
 
-    it("can choose target with config method", function()
-        helpers.exec_lua(function()
-            require("roslyn.config").setup({
-                choose_target = function(targets)
-                    return vim.iter(targets):find(function(item)
-                        return string.match(item, "Foo.sln")
-                    end)
-                end,
-            })
-        end)
-
+    it("returns nil when multiple targets remain after filtering", function()
         create_file("Program.cs")
         create_file("Bar.csproj")
 
@@ -179,6 +169,6 @@ describe("predicts", function()
             local bufnr = vim.api.nvim_get_current_buf()
             return require("roslyn.sln.utils").predict_target(bufnr, targets0)
         end, targets)
-        assert.are_same(vim.fs.joinpath(scratch, "Foo.sln"), target)
+        assert.is_nil(target)
     end)
 end)
