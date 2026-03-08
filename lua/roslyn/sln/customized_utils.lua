@@ -68,13 +68,6 @@ end
 function M.handle_target_selection(bufnr, targets, on_dir)
     local store = require("roslyn.store")
 
-    if vim.g.roslyn_nvim_selected_solution then
-        local selected_root_dir = vim.fs.dirname(vim.g.roslyn_nvim_selected_solution)
-        store.set_target_for_root_dir(selected_root_dir, vim.g.roslyn_nvim_selected_solution)
-        on_dir(selected_root_dir)
-        return true
-    end
-
     if #targets > 1 then
         if _prompt_pending then
             return true
@@ -183,13 +176,11 @@ function M.root_dir(bufnr, on_dir)
         return nil
     end
 
-    local selected_solution = vim.g.roslyn_nvim_selected_solution
     local root_dir = vim.fs.dirname(filtered_targets[1])
-        or selected_solution and vim.fs.dirname(selected_solution)
         or solutions[1] and vim.fs.dirname(solutions[1])
         or csprojs[1] and vim.fs.dirname(csprojs[1])
 
-    local target = filtered_targets[1] or selected_solution or solutions[1]
+    local target = filtered_targets[1] or solutions[1]
     if root_dir and target then
         store.set_target_for_root_dir(root_dir, target)
     end

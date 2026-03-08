@@ -123,7 +123,6 @@ return {
             local on_init = require("roslyn.lsp.on_init")
             local store = require("roslyn.store")
 
-            local selected_solution = vim.g.roslyn_nvim_selected_solution
             local cached_target = store.get_target_for_root_dir(client.config.root_dir)
 
             if cached_target then
@@ -141,10 +140,6 @@ return {
             local csproj = utils.find_files_with_extensions(client.config.root_dir, { ".csproj" })
             if #csproj > 0 then
                 return on_init.project(client, csproj)
-            end
-
-            if selected_solution then
-                return on_init.sln(client, selected_solution)
             end
         end,
     },

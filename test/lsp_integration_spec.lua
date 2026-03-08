@@ -196,6 +196,47 @@ describe("LSP integration with mock server", function()
         assert.are_equal(vim.fs.joinpath(scratch, "Foo.sln"), selected)
     end)
 
+    it("does not use manual global override during fresh initialization", function()
+        create_file("src/Program.cs")
+        create_file("src/Foo.csproj")
+        create_sln_file("Foo.sln", { { name = "Foo", path = "src/Foo.csproj" } })
+        create_sln_file("Bar.sln", { { name = "Foo", path = "src/Foo.csproj" } })
+
+        helpers.exec_lua(function()
+            vim.g.roslyn_nvim_selected_solution = vim.fs.joinpath(vim.fn.getcwd(), "Unrelated.sln")
+            local original_select = vim.ui.select
+            vim.g.roslyn_test_global_override_prompted = false
+            vim.ui.select = function(_, _, on_choice)
+                vim.g.roslyn_test_global_override_prompted = true
+                on_choice(nil)
+                vim.ui.select = original_select
+            end
+        end)
+
+        command("edit " .. vim.fs.joinpath(helpers.scratch, "src", "Program.cs"))
+
+        helpers.exec_lua(function()
+            vim.wait(200, function()
+                return vim.g.roslyn_test_global_override_prompted == true
+            end)
+        end)
+
+        local state = helpers.exec_lua(function()
+            local store = require("roslyn.store")
+            return {
+                notifications = require("test.utils.mock_server").notifications,
+                cached_target = store.get_target_for_root_dir(vim.fs.joinpath(vim.fn.getcwd(), "src")),
+                prompted = vim.g.roslyn_test_global_override_prompted,
+                selected_solution = vim.g.roslyn_nvim_selected_solution,
+            }
+        end)
+
+        assert.is_true(state.prompted)
+        assert.are_equal(0, #state.notifications)
+        assert.is_nil(state.cached_target)
+        assert.are_equal(vim.fs.joinpath(scratch, "Unrelated.sln"), state.selected_solution)
+    end)
+
     it("finds solution with broad_search enabled", function()
         helpers.exec_lua(function()
             require("roslyn.config").setup({ broad_search = true })
