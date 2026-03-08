@@ -54,9 +54,6 @@ local function get_default_cmd()
     return cmd
 end
 
--- Tracks whether a prompt_target_on_multiple selection prompt is currently showing
-local _prompt_pending = false
-
 ---@type vim.lsp.Config
 return {
     name = "roslyn",
@@ -83,12 +80,6 @@ return {
         },
     },
     root_dir = function(bufnr, on_dir)
-        if require("roslyn.config").get().lock_target and vim.g.roslyn_nvim_selected_solution then
-            local root_dir = vim.fs.dirname(vim.g.roslyn_nvim_selected_solution)
-            on_dir(root_dir)
-            return
-        end
-
         -- For source-generated files, use the root_dir from the existing client
         local buf_name = vim.api.nvim_buf_get_name(bufnr)
         if buf_name:match("^roslyn%-source%-generated://") then
@@ -130,12 +121,13 @@ return {
 
             local utils = require("roslyn.sln.customized_utils")
             local on_init = require("roslyn.lsp.on_init")
+            local store = require("roslyn.store")
 
-            local config = require("roslyn.config").get()
             local selected_solution = vim.g.roslyn_nvim_selected_solution
+            local cached_target = store.get_target_for_root_dir(client.config.root_dir)
 
-            if (config.lock_target or config.prompt_target_on_multiple) and selected_solution then
-                return on_init.sln(client, selected_solution)
+            if cached_target then
+                return on_init.sln(client, cached_target)
             end
 
             local files = utils.find_files_with_extensions(client.config.root_dir, { ".sln", ".slnx", ".slnf" })

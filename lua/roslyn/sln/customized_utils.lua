@@ -42,7 +42,7 @@ local function get_shortest_path(paths)
     return shortest
 end
 
--- Tracks whether a prompt_target_on_multiple selection prompt is currently showing
+-- Tracks whether a solution selection prompt is currently showing
 local _prompt_pending = false
 
 ---@param bufnr number
@@ -65,14 +65,13 @@ end
 ---@param bufnr number
 ---@param targets string[]
 ---@param on_dir fun(path: string|nil)
-function M.handle_prompt_target_on_multiple(bufnr, targets, on_dir)
-    local config = require("roslyn.config").get()
-    if not config.prompt_target_on_multiple then
-        return false
-    end
+function M.handle_target_selection(bufnr, targets, on_dir)
+    local store = require("roslyn.store")
 
     if vim.g.roslyn_nvim_selected_solution then
-        on_dir(vim.fs.dirname(vim.g.roslyn_nvim_selected_solution))
+        local selected_root_dir = vim.fs.dirname(vim.g.roslyn_nvim_selected_solution)
+        store.set_target_for_root_dir(selected_root_dir, vim.g.roslyn_nvim_selected_solution)
+        on_dir(selected_root_dir)
         return true
     end
 
@@ -91,8 +90,10 @@ function M.handle_prompt_target_on_multiple(bufnr, targets, on_dir)
             }, function(file)
                 _prompt_pending = false
                 if file then
+                    local root_dir = vim.fs.dirname(file)
                     vim.g.roslyn_nvim_selected_solution = file
-                    on_dir(vim.fs.dirname(file))
+                    store.set_target_for_root_dir(root_dir, file)
+                    on_dir(root_dir)
                     vim.schedule(function()
                         for _, buf in ipairs(vim.api.nvim_list_bufs()) do
                             if vim.api.nvim_buf_is_loaded(buf) and buf ~= bufnr then
@@ -139,9 +140,12 @@ end
 ---@return string?
 function M.root_dir(bufnr, on_dir)
     local config = require("roslyn.config").get()
+    local store = require("roslyn.store")
     local solutions = config.broad_search and M.find_solutions_broad(bufnr) or M.find_solutions(bufnr)
     if #solutions == 1 then
-        return vim.fs.dirname(solutions[1])
+        local root_dir = vim.fs.dirname(solutions[1])
+        store.set_target_for_root_dir(root_dir, solutions[1])
+        return root_dir
     end
 
     local nearest_sln_dir = solutions[1] and vim.fs.dirname(solutions[1]) or nil
@@ -167,7 +171,7 @@ function M.root_dir(bufnr, on_dir)
             return possible_solutions[1]
         end
 
-        if on_dir and M.handle_prompt_target_on_multiple(bufnr, filtered_targets, on_dir) then
+        if on_dir and M.handle_target_selection(bufnr, filtered_targets, on_dir) then
             return nil
         end
 
@@ -180,10 +184,17 @@ function M.root_dir(bufnr, on_dir)
     end
 
     local selected_solution = vim.g.roslyn_nvim_selected_solution
-    return vim.fs.dirname(filtered_targets[1])
+    local root_dir = vim.fs.dirname(filtered_targets[1])
         or selected_solution and vim.fs.dirname(selected_solution)
         or solutions[1] and vim.fs.dirname(solutions[1])
         or csprojs[1] and vim.fs.dirname(csprojs[1])
+
+    local target = filtered_targets[1] or selected_solution or solutions[1]
+    if root_dir and target then
+        store.set_target_for_root_dir(root_dir, target)
+    end
+
+    return root_dir
 end
 
 ---@param bufnr number

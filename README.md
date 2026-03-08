@@ -145,11 +145,6 @@ opts = {
     -- directory with the solution file
     broad_search = false,
 
-    -- Whether or not to lock the solution target after the first attach.
-    -- This will always attach to the target in `vim.g.roslyn_nvim_selected_solution`.
-    -- NOTE: You can use `:Roslyn target` to change the target
-    lock_target = false,
-
     -- If the plugin should silence notifications about initialization
     silent = false,
 
@@ -185,6 +180,9 @@ vim.lsp.config("roslyn", {
 
 Some tips and tricks that may be useful, but not in the scope of this plugin,
 are documented in the [wiki](https://github.com/seblyng/roslyn.nvim/wiki).
+
+- When multiple solution files still match after target filtering, the plugin prompts you to choose one and caches that selection for the resolved `root_dir`.
+- The current solution is also stored in `vim.g.roslyn_nvim_selected_solution`, which can be useful for statusline integrations.
 
 > [!NOTE]  
 > These settings are not guaranteed to be up-to-date and new ones can appear in the future. Aditionally, not all settings are shown here, but only the most relevant ones for Neovim. For a full list, visit [this](https://github.com/dotnet/vscode-csharp/blob/main/test/lsptoolshost/unitTests/configurationMiddleware.test.ts) unit test from the vscode extension and look especially for the ones which **don't** have `vsCodeConfiguration: null`.
