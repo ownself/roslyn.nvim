@@ -96,6 +96,7 @@ Install the plugin with your preferred package manager. For full server installa
 ```lua
 return {
     "ownself/roslyn.nvim",
+    branch = "improvement", -- this fork's actively maintained branch; `main` is kept close to upstream for syncing
     ---@module 'roslyn.config'
     ---@type RoslynNvimConfig
     opts = {
@@ -260,6 +261,7 @@ vim.g.roslyn_nvim_selected_target = {
 ```lua
 return {
     "ownself/roslyn.nvim",
+    branch = "improvement", -- 当前 fork 的活跃开发分支；`main` 尽量保持接近上游以便同步
     ---@module 'roslyn.config'
     ---@type RoslynNvimConfig
     opts = {
