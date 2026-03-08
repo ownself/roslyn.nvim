@@ -363,9 +363,11 @@ local subcommand_tbl = {
             local configuration = client.config.cmd_env and client.config.cmd_env.Configuration or "Debug"
             table.insert(lines, string.format("  Configuration: %s", configuration))
 
-            -- Current solution
-            local solution = store.get(client.id)
-            if solution then
+            -- Current target
+            local resolved_target = store.get_client_resolved_target(client.id)
+            if resolved_target and resolved_target.kind == "solution" then
+                local solution = resolved_target.target
+                table.insert(lines, string.format("  Target: solution"))
                 table.insert(lines, string.format("  Solution: %s", vim.fn.fnamemodify(solution, ":.")))
 
                 -- List projects in solution
@@ -376,8 +378,9 @@ local subcommand_tbl = {
                         table.insert(lines, string.format("    %d. %s", i, vim.fn.fnamemodify(proj, ":t")))
                     end
                 end
-            else
-                table.insert(lines, "  Solution: (none - using project mode)")
+            elseif resolved_target and resolved_target.kind == "project" then
+                table.insert(lines, "  Target: project")
+                table.insert(lines, string.format("  Project: %s", vim.fn.fnamemodify(resolved_target.target, ":.")))
 
                 -- Show csproj files in root_dir
                 if client.config.root_dir then
@@ -389,6 +392,8 @@ local subcommand_tbl = {
                         end
                     end
                 end
+            else
+                table.insert(lines, "  Target: (unknown)")
             end
 
             -- Current file's nearest csproj

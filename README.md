@@ -182,7 +182,7 @@ Some tips and tricks that may be useful, but not in the scope of this plugin,
 are documented in the [wiki](https://github.com/seblyng/roslyn.nvim/wiki).
 
 - When multiple solution files still match after target filtering, the plugin prompts you to choose one and caches that selection for the resolved `root_dir`.
-- The current solution is also stored in `vim.g.roslyn_nvim_selected_solution`, which can be useful for statusline integrations.
+- The current target is also stored in `vim.g.roslyn_nvim_selected_target` as `{ kind, target }`, which can be useful for statusline integrations.
 
 > [!NOTE]  
 > These settings are not guaranteed to be up-to-date and new ones can appear in the future. Aditionally, not all settings are shown here, but only the most relevant ones for Neovim. For a full list, visit [this](https://github.com/dotnet/vscode-csharp/blob/main/test/lsptoolshost/unitTests/configurationMiddleware.test.ts) unit test from the vscode extension and look especially for the ones which **don't** have `vsCodeConfiguration: null`.
@@ -323,4 +323,4 @@ This setting controls how the language server should format code.
 ## 🚀 Other usage
 
 - If you have multiple solutions, this plugin tries to guess which one to use. You can change the target with the `:Roslyn target` command.
-- The current solution is always stored in `vim.g.roslyn_nvim_selected_solution`. You can use this, for example, to display the current solution in your statusline.
+- The current target is always stored in `vim.g.roslyn_nvim_selected_target`. You can use this, for example, to display the current solution or project in your statusline.

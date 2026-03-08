@@ -1,6 +1,7 @@
 local M = {}
 
 local client_id_to_solution = {}
+local client_id_to_resolved_target = {}
 local root_dir_to_resolved_target = {}
 
 ---@alias RoslynResolvedTargetKind "solution" | "project"
@@ -13,12 +14,25 @@ local root_dir_to_resolved_target = {}
 ---@param solution? string
 function M.set(client_id, solution)
     client_id_to_solution[client_id] = solution
-    vim.g.roslyn_nvim_selected_solution = solution
+    client_id_to_resolved_target[client_id] = solution and { kind = "solution", target = solution } or nil
 end
 
 ---@param client_id integer
 function M.get(client_id)
     return client_id_to_solution[client_id]
+end
+
+---@param client_id integer
+---@param resolved_target? RoslynResolvedTarget
+function M.set_client_resolved_target(client_id, resolved_target)
+    client_id_to_resolved_target[client_id] = resolved_target
+    client_id_to_solution[client_id] = resolved_target and resolved_target.kind == "solution" and resolved_target.target or nil
+end
+
+---@param client_id integer
+---@return RoslynResolvedTarget?
+function M.get_client_resolved_target(client_id)
+    return client_id_to_resolved_target[client_id]
 end
 
 ---@param root_dir string

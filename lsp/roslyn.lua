@@ -142,7 +142,7 @@ return {
     },
     on_exit = {
         function(_, _, client_id)
-            require("roslyn.store").set(client_id, nil)
+            require("roslyn.store").set_client_resolved_target(client_id, nil)
             vim.schedule(function()
                 require("roslyn.roslyn_emitter").emit("stopped")
                 vim.notify("Roslyn server stopped", vim.log.levels.INFO, { title = "roslyn.nvim" })

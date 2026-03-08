@@ -22,8 +22,8 @@ local group = vim.api.nvim_create_augroup("roslyn.nvim", { clear = true })
 local diag_version = 0
 local buf_diag_versions = {}
 
--- Updates `vim.g.roslyn_nvim_selected_solution` when entering a C# or Razor buffer
--- so that it always reflects the current buffers' solution.
+-- Updates `vim.g.roslyn_nvim_selected_target` when entering a C# or Razor buffer
+-- so that it always reflects the current buffer's active target.
 -- Also refreshes diagnostics if the buffer is stale (other buffers were modified since last refresh).
 vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
@@ -31,7 +31,8 @@ vim.api.nvim_create_autocmd("BufEnter", {
     callback = function(args)
         local client = vim.lsp.get_clients({ name = "roslyn", bufnr = args.buf })[1]
         if client then
-            vim.g.roslyn_nvim_selected_solution = require("roslyn.store").get(client.id)
+            local resolved_target = require("roslyn.store").get_client_resolved_target(client.id)
+            vim.g.roslyn_nvim_selected_target = resolved_target
             if buf_diag_versions[args.buf] ~= diag_version then
                 require("roslyn.lsp.diagnostics").refresh_buf(client, args.buf)
                 buf_diag_versions[args.buf] = diag_version

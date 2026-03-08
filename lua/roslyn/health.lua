@@ -142,10 +142,16 @@ function M.check()
 
     vim.health.start("roslyn.nvim: Solution Detection")
 
-    if vim.g.roslyn_nvim_selected_solution then
-        vim.health.ok(string.format("Selected solution: %s", vim.g.roslyn_nvim_selected_solution))
+    if vim.g.roslyn_nvim_selected_target then
+        vim.health.ok(
+            string.format(
+                "Selected target (%s): %s",
+                vim.g.roslyn_nvim_selected_target.kind,
+                vim.g.roslyn_nvim_selected_target.target
+            )
+        )
     else
-        vim.health.info("No solution selected")
+        vim.health.info("No target selected")
     end
 end
 

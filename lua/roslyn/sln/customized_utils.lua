@@ -75,10 +75,7 @@ end
 local function cache_resolved_target(root_dir, resolved_target)
     local store = require("roslyn.store")
     store.set_resolved_target(root_dir, resolved_target)
-
-    if resolved_target.kind == "solution" then
-        vim.g.roslyn_nvim_selected_solution = resolved_target.target
-    end
+    vim.g.roslyn_nvim_selected_target = resolved_target
 end
 
 ---@param bufnr number

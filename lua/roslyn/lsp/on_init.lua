@@ -1,7 +1,14 @@
 local M = {}
 
 function M.sln(client, solution)
-    require("roslyn.store").set(client.id, solution)
+    require("roslyn.store").set_client_resolved_target(client.id, {
+        kind = "solution",
+        target = solution,
+    })
+    vim.g.roslyn_nvim_selected_target = {
+        kind = "solution",
+        target = solution,
+    }
 
     if not require("roslyn.config").get().silent then
         vim.notify("Initializing Roslyn for: " .. solution, vim.log.levels.INFO, { title = "roslyn.nvim" })
@@ -22,6 +29,15 @@ function M.sln(client, solution)
 end
 
 function M.project(client, projects)
+    require("roslyn.store").set_client_resolved_target(client.id, {
+        kind = "project",
+        target = projects[1],
+    })
+    vim.g.roslyn_nvim_selected_target = {
+        kind = "project",
+        target = projects[1],
+    }
+
     if not require("roslyn.config").get().silent then
         vim.notify("Initializing Roslyn for: project", vim.log.levels.INFO, { title = "roslyn.nvim" })
     end
