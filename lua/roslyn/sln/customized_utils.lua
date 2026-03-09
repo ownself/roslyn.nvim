@@ -150,7 +150,17 @@ end
 ---@return string?
 function M.root_dir(bufnr, on_dir)
     local config = require("roslyn.config").get()
+    local store = require("roslyn.store")
     local solutions = config.broad_search and M.find_solutions_broad(bufnr) or M.find_solutions(bufnr)
+
+    -- Check if we already have a cached resolved target for any of these solutions
+    for _, sln in ipairs(solutions) do
+        local root = vim.fs.dirname(sln)
+        local cached = store.get_resolved_target(root)
+        if cached then
+            return root
+        end
+    end
 
     if #solutions == 1 then
         local root_dir = vim.fs.dirname(solutions[1])
@@ -187,7 +197,7 @@ function M.root_dir(bufnr, on_dir)
     if #filtered_targets > 1 then
         local possible_solutions = vim.iter(vim.lsp.get_clients({ name = "roslyn" }))
             :map(function(client)
-                local client_solution = require("roslyn.store").get(client.id)
+                local client_solution = store.get(client.id)
                 if client_solution and vim.list_contains(filtered_targets, client_solution) then
                     return vim.fs.dirname(client_solution)
                 end
@@ -208,6 +218,15 @@ function M.root_dir(bufnr, on_dir)
             { title = "roslyn.nvim" }
         )
         return nil
+    end
+
+    -- Check if we already have a cached resolved target for any of these csprojs
+    for _, proj in ipairs(csprojs) do
+        local root = vim.fs.dirname(proj)
+        local cached = store.get_resolved_target(root)
+        if cached then
+            return root
+        end
     end
 
     if #csprojs == 1 then
