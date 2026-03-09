@@ -38,17 +38,17 @@ local function find_upward_csprojs(bufnr)
     local buf_path = vim.api.nvim_buf_get_name(bufnr)
     local dir = vim.fs.dirname(buf_path)
     local csprojs = {}
-    local seen = {}
 
     while dir and dir ~= "" do
         for entry, entry_type in vim.fs.dir(dir) do
             if entry_type == "file" and entry:match("%.csproj$") then
                 local path = vim.fs.normalize(vim.fs.joinpath(dir, entry))
-                if not seen[path] then
-                    seen[path] = true
-                    csprojs[#csprojs + 1] = path
-                end
+                csprojs[#csprojs + 1] = path
             end
+        end
+
+        if #csprojs > 0 then
+            break
         end
 
         local parent = vim.fs.dirname(dir)
@@ -116,17 +116,36 @@ end
 ---@return string[]
 function M.find_solutions(bufnr)
     local cwd = vim.fs.normalize(vim.fn.getcwd())
-    local results = vim.fs.find(function(name)
-        return name:match("%.sln$") or name:match("%.slnx$") or name:match("%.slnf$")
-    end, { upward = true, path = vim.api.nvim_buf_get_name(bufnr), limit = math.huge })
+    local buf_path = vim.api.nvim_buf_get_name(bufnr)
+    local dir = vim.fs.dirname(buf_path)
+    local solutions = {}
 
-    local filtered = vim.tbl_filter(function(sln_path)
-        local sln_dir = vim.fs.normalize(vim.fs.dirname(sln_path))
-        return sln_dir:find(cwd, 1, true) == 1
-    end, results)
+    while dir and dir ~= "" do
+        local dir_normalized = vim.fs.normalize(dir)
+        -- Only consider directories within cwd
+        if not dir_normalized:find(cwd, 1, true) then
+            break
+        end
 
-    log.log(string.format("find_solutions cwd: %s, found: %s, filtered: %s", cwd, vim.inspect(results), vim.inspect(filtered)))
-    return filtered
+        for entry, entry_type in vim.fs.dir(dir) do
+            if entry_type == "file" and (entry:match("%.sln$") or entry:match("%.slnx$") or entry:match("%.slnf$")) then
+                solutions[#solutions + 1] = vim.fs.normalize(vim.fs.joinpath(dir, entry))
+            end
+        end
+
+        if #solutions > 0 then
+            break
+        end
+
+        local parent = vim.fs.dirname(dir)
+        if not parent or parent == dir then
+            break
+        end
+        dir = parent
+    end
+
+    log.log(string.format("find_solutions cwd: %s, found: %s", cwd, vim.inspect(solutions)))
+    return solutions
 end
 
 function M.handle_target_selection(bufnr, targets, on_dir)
