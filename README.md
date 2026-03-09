@@ -65,6 +65,8 @@ vim.g.roslyn_nvim_selected_target = {
 - Added `:Roslyn config` to choose the active build configuration
 - Added `:Roslyn unityslnf` to generate Unity-focused `.slnf` files for `UnityEditor` / `UnityPlayer`
 
+![Roslyn config](roslyn_config.png)
+
 ### Editor Behavior / UI
 
 - Added `dim_inactive_regions` to gray out code excluded by preprocessor conditions
@@ -229,6 +231,8 @@ vim.g.roslyn_nvim_selected_target = {
 - 增加了 `:Roslyn context`，用于查看当前 Roslyn 工作区上下文
 - 增加了 `:Roslyn config`，用于选择当前构建配置
 - 增加了 `:Roslyn unityslnf`，用于为 `UnityEditor` / `UnityPlayer` 生成 Unity 场景下更适合的 `.slnf`
+
+![Roslyn config](roslyn_config.png)
 
 ### 编辑器行为 / UI
 
