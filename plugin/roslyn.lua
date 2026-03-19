@@ -18,13 +18,8 @@ vim.filetype.add({
 
 local group = vim.api.nvim_create_augroup("roslyn.nvim", { clear = true })
 
--- Diagnostics version tracking: only refresh buffers that are "stale"
-local diag_version = 0
-local buf_diag_versions = {}
-
 -- Updates `vim.g.roslyn_nvim_selected_target` when entering a C# or Razor buffer
 -- so that it always reflects the current buffer's active target.
--- Also refreshes diagnostics if the buffer is stale (other buffers were modified since last refresh).
 vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
     pattern = { "*.cs", "*.razor", "*.cshtml" },
@@ -33,10 +28,6 @@ vim.api.nvim_create_autocmd("BufEnter", {
         if client then
             local resolved_target = require("roslyn.store").get_client_resolved_target(client.id)
             vim.g.roslyn_nvim_selected_target = resolved_target
-            if buf_diag_versions[args.buf] ~= diag_version then
-                require("roslyn.lsp.diagnostics").refresh_buf(client, args.buf)
-                buf_diag_versions[args.buf] = diag_version
-            end
         end
     end,
 })
@@ -49,16 +40,13 @@ vim.api.nvim_create_autocmd("FileType", {
     end,
 })
 
--- remove "InsertLeave" since Roslyn LSP handles that by push diagnostics
-vim.api.nvim_create_autocmd("BufWritePost", {
+vim.api.nvim_create_autocmd({ "BufWritePost", "InsertLeave" }, {
     group = group,
     pattern = { "*.cs", "*.razor", "*.cshtml" },
-    callback = function(args)
-        local client = vim.lsp.get_clients({ name = "roslyn", bufnr = args.buf })[1]
-        if client then
-            diag_version = diag_version + 1
-            require("roslyn.lsp.diagnostics").refresh_buf(client, args.buf)
-            buf_diag_versions[args.buf] = diag_version
+    callback = function()
+        local clients = vim.lsp.get_clients({ name = "roslyn" })
+        for _, client in ipairs(clients) do
+            require("roslyn.lsp.diagnostics").refresh(client)
         end
     end,
 })
