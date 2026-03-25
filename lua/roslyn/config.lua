@@ -18,7 +18,7 @@ local M = {}
 
 ---@type InternalRoslynNvimConfig
 local roslyn_config = {
-    filewatching = "auto",
+    filewatching = "roslyn",
     ignore_target = nil,
     broad_search = false,
     silent = false,

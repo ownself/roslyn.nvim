@@ -132,9 +132,11 @@ function M.check()
                 vim.health.ok("File watching: auto (using Roslyn's built-in file watcher)")
             end
         elseif config.filewatching == "roslyn" then
-            vim.health.ok("File watching: roslyn (using Roslyn's built-in file watcher)")
+            vim.health.ok("File watching: roslyn (default; using Roslyn's built-in file watcher)")
         elseif config.filewatching == "off" then
-            vim.health.warn("File watching: off (disabled as a hack - all file changes ignored)")
+            vim.health.warn(
+                "File watching: off (hack mode - external file changes are ignored and diagnostics may become stale)"
+            )
         else
             vim.health.error(string.format("File watching: unknown value '%s'", config.filewatching))
         end
