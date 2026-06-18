@@ -28,30 +28,14 @@ end
 local subcommand_tbl = {
     restart = {
         impl = function()
-            local bufnr = vim.api.nvim_get_current_buf()
-            local client = vim.lsp.get_clients({ name = "roslyn", bufnr = bufnr })[1]
-            if not client then
-                return
-            end
-
-            on_stopped(function()
-                vim.lsp.enable("roslyn")
-            end)
-
-            local force_stop = vim.uv.os_uname().sysname == "Windows_NT"
-            client:stop(force_stop)
+            vim.deprecate(":Roslyn restart", ":lsp restart roslyn", "soon", "roslyn.nvim")
+            vim.cmd.lsp("restart", "roslyn")
         end,
     },
     stop = {
         impl = function()
-            local bufnr = vim.api.nvim_get_current_buf()
-            local client = vim.lsp.get_clients({ name = "roslyn", bufnr = bufnr })[1]
-            if not client then
-                return
-            end
-
-            local force_stop = vim.uv.os_uname().sysname == "Windows_NT"
-            client:stop(force_stop)
+            vim.deprecate(":Roslyn stop", ":lsp stop roslyn", "soon", "roslyn.nvim")
+            vim.cmd.lsp("stop", "roslyn")
         end,
     },
     target = {
@@ -98,6 +82,7 @@ local subcommand_tbl = {
     },
     start = {
         impl = function()
+            vim.deprecate(":Roslyn start", ":lsp enable roslyn", "soon", "roslyn.nvim")
             local bufnr = vim.api.nvim_get_current_buf()
             local utils = require("roslyn.sln.utils")
             local broad_search = require("roslyn.config").get().broad_search
@@ -189,7 +174,7 @@ local subcommand_tbl = {
                     on_stopped(function()
                         vim.lsp.enable("roslyn")
                     end)
-                    local force_stop = vim.loop.os_uname().sysname == "Windows_NT"
+                    local force_stop = vim.uv.os_uname().sysname == "Windows_NT"
                     client:stop(force_stop)
                 else
                     vim.lsp.enable("roslyn")

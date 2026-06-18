@@ -1,5 +1,13 @@
 local M = {}
 
+---@class RoslynExtension
+---@field enabled boolean
+---@field config (RoslynExtensionConfig | fun(): RoslynExtensionConfig)
+
+---@class RoslynExtensionConfig
+---@field path string?
+---@field args? string[]
+
 ---@class InternalRoslynNvimConfig
 ---@field filewatching "auto" | "off" | "roslyn"
 ---@field ignore_target? fun(target: string): boolean
@@ -7,6 +15,7 @@ local M = {}
 ---@field silent boolean
 ---@field debug boolean
 ---@field dim_inactive_regions boolean
+---@field extensions? table<string, RoslynExtension>
 
 ---@class RoslynNvimConfig
 ---@field filewatching? boolean | "auto" | "off" | "roslyn"
@@ -15,6 +24,7 @@ local M = {}
 ---@field silent? boolean
 ---@field debug? boolean
 ---@field dim_inactive_regions? boolean
+---@field extensions? table<string, RoslynExtension>
 
 ---@type InternalRoslynNvimConfig
 local roslyn_config = {
@@ -24,6 +34,7 @@ local roslyn_config = {
     silent = false,
     debug = false,
     dim_inactive_regions = true,
+    extensions = {},
 }
 
 function M.get()

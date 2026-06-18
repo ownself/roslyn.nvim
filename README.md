@@ -4,8 +4,8 @@
 
 This repository is an actively maintained fork of [seblyng/roslyn.nvim](https://github.com/seblyng/roslyn.nvim).
 
-- Upstream provides the original plugin, overall architecture, and ongoing Roslyn / Razor support.
-- This fork focuses on solution and project resolution for larger or more irregular C# workspaces, plus a few workflow-oriented additions.
+- Upstream provides the original plugin, architecture, and ongoing Roslyn / Razor support.
+- This fork focuses on solution and project resolution for larger or irregular C# workspaces, plus workflow-oriented additions.
 - For the original full documentation, background, and upstream-oriented examples, please read the upstream README and wiki:
   - [upstream README](https://github.com/seblyng/roslyn.nvim)
   - [upstream wiki](https://github.com/seblyng/roslyn.nvim/wiki)
@@ -18,9 +18,15 @@ Huge thanks to:
 - the upstream authors and contributors who built the Roslyn / Razor integration this fork extends
 - the .NET / Roslyn teams for shipping the open-source language server used here
 
+## Requirements
+
+- Neovim >= 0.12.0
+- Roslyn language server downloaded locally
+- .NET SDK installed and `dotnet` command available
+
 ## What This Fork Changes
 
-The items below summarize the fork-specific work
+The items below summarize the fork-specific work.
 
 ### Workspace / Target Resolution
 
@@ -80,14 +86,53 @@ vim.g.roslyn_nvim_selected_target = {
 - Simplified fork-specific logic after the resolver rewrite and removed dead code from the customized utility layer
 - Expanded and updated tests around multi-solution prompting, cache reuse, and project-mode initialization
 
-## Current Fork-Specific Behavior
+## Installing the Roslyn Language Server
 
-The most important behavior differences to be aware of in this fork are:
+### Mason recommended
 
-- target resolution is explicit and cache-driven
-- both solution mode and project mode are first-class
-- the current active target is exposed as `vim.g.roslyn_nvim_selected_target`
-- ambiguous workspaces prefer prompting over implicit guessing
+You can install with:
+
+```vim
+:MasonInstall roslyn-language-server
+```
+
+The package from `nuget.org` is not necessarily as up to date as the version used in VS Code. For a newer version, configure a custom Mason registry:
+
+```lua
+require("mason").setup({
+    registries = {
+        "github:mason-org/mason-registry",
+        "github:Crashdummyy/mason-registry",
+    },
+})
+```
+
+This registry provides:
+
+- `roslyn` — same version as in VS Code
+- `roslyn-nightly` — bleeding edge features with potentially breaking changes
+
+### Manual / dotnet tool
+
+`roslyn-language-server` supports Razor since version `5.8.0-1.26262.10`. It can be installed as a [.NET global tool](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools).
+
+The tool is available from:
+
+- [nuget.org], which is not updated that often
+- [Azure DevOps feed], where updates happen multiple times a day
+
+The Azure DevOps feed is recommended.
+
+```bash
+# More recent Azure DevOps feed
+dotnet tool install -g roslyn-language-server --prerelease --source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
+
+# nuget.org
+dotnet tool install -g roslyn-language-server --prerelease
+
+# Updating works the same way, using update instead of install
+dotnet tool update -g roslyn-language-server --prerelease --source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
+```
 
 ## Minimal Setup
 
@@ -154,15 +199,27 @@ end
 
 This is useful for statusline integrations or custom workspace UI.
 
+## Custom Roslyn Extensions
+
+To pass custom Roslyn extensions, override the server command and include one `--extension=/path/to/extension.dll` argument per extension.
+
+```lua
+vim.lsp.config("roslyn", {
+    cmd = {
+        "roslyn-language-server",
+        "--stdio",
+        "--extension=/path/to/Roslynator.dll",
+    },
+})
+```
+
 ## Commands
 
-- `:Roslyn restart` restarts the server
-- `:Roslyn start` starts the server
-- `:Roslyn stop` stops the server
 - `:Roslyn target` chooses a target solution when needed
 - `:Roslyn context` shows current Roslyn workspace context
 - `:Roslyn config` selects the active build configuration
 - `:Roslyn unityslnf` generates a Unity-focused solution filter
+- `:Roslyn restart`, `:Roslyn start`, and `:Roslyn stop` are kept for compatibility but follow upstream deprecation toward `:lsp restart roslyn`, `:lsp enable roslyn`, and `:lsp stop roslyn`
 
 ## Notes
 
@@ -181,13 +238,11 @@ This is useful for statusline integrations or custom workspace UI.
   - [上游 README](https://github.com/seblyng/roslyn.nvim)
   - [上游 Wiki](https://github.com/seblyng/roslyn.nvim/wiki)
 
-## 致谢
+## 要求
 
-特别感谢：
-
-- [seblyng/roslyn.nvim](https://github.com/seblyng/roslyn.nvim) 提供原始插件与持续维护
-- 所有上游作者与贡献者，他们构建了这个 fork 所扩展的 Roslyn / Razor 集成能力
-- .NET / Roslyn 团队提供并持续改进开源语言服务器
+- Neovim >= 0.12.0
+- 已安装 Roslyn language server
+- 已安装 .NET SDK，并且 `dotnet` 命令可用
 
 ## 这个 Fork 的主要改动
 
@@ -245,26 +300,9 @@ vim.g.roslyn_nvim_selected_target = {
 
 ![dim inactive regions](dim_inactive_regions.png)
 
-### 维护性 / 内部重构
-
-- 将自定义 solution 工具逻辑移动到更接近上游实现的位置，以减少后续和 upstream 同步时的冲突成本
-- 在 resolver 重写后移除了 `customized_utils` 中已无必要的旧逻辑和死代码
-- 更新并扩展了多 solution prompt、缓存复用、project 模式初始化等相关测试
-
-## 当前 Fork 的关键行为
-
-这个 fork 和上游相比，最值得注意的行为差异包括：
-
-- target 解析是显式且由缓存驱动的
-- solution 模式和 project 模式都是一等公民
-- 当前活跃 target 会通过 `vim.g.roslyn_nvim_selected_target` 暴露给用户
-- 当工作区存在歧义时，更倾向于 prompt 用户，而不是隐式猜测
-
 ## 最小配置示例
 
 安装方式、Mason 说明以及更完整的 Roslyn 服务器安装背景，请优先参考上游 README。
-
-### `lazy.nvim`
 
 ```lua
 return {
@@ -327,15 +365,17 @@ end
 
 ## 命令
 
-- `:Roslyn restart` 重启服务器
-- `:Roslyn start` 启动服务器
-- `:Roslyn stop` 停止服务器
 - `:Roslyn target` 在需要时手动选择 solution target
 - `:Roslyn context` 查看当前 Roslyn 工作区上下文
 - `:Roslyn config` 选择当前构建配置
 - `:Roslyn unityslnf` 生成 Unity 场景下使用的 solution filter
+- `:Roslyn restart` / `:Roslyn start` / `:Roslyn stop` 为兼容保留，上游推荐逐步使用 `:lsp restart roslyn` / `:lsp enable roslyn` / `:lsp stop roslyn`
 
 ## 说明
 
 - 如果你想阅读原始、完整且更通用的参考文档，请优先查看上游 README 和 Wiki。
 - 如果你使用的是这个 fork，请优先参考这里的行为说明，而不是旧的上游示例，尤其是那些仍然提到 `choose_target`、`lock_target` 或 `vim.g.roslyn_nvim_selected_solution` 的内容。
+
+[nuget.org]: https://www.nuget.org/packages/roslyn-language-server
+[nvim-lspconfig]: https://github.com/neovim/nvim-lspconfig
+[Azure Devops feed]: https://dev.azure.com/azure-public/vside/_artifacts/feed/vs-impl/NuGet/roslyn-language-server.linux-x64

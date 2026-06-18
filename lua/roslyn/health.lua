@@ -1,49 +1,14 @@
 local M = {}
-
----@return string[]
-local function get_roslyn_executables()
-    local sysname = vim.uv.os_uname().sysname:lower()
-    local iswin = not not (sysname:find("windows") or sysname:find("mingw"))
-    local roslyn_bin = iswin and "roslyn.cmd" or "roslyn"
-    local mason_bin = vim.fs.joinpath(vim.fn.stdpath("data"), "mason", "bin", roslyn_bin)
-
-    return {
-        mason_bin,
-        roslyn_bin,
-        "Microsoft.CodeAnalysis.LanguageServer",
-    }
-end
-
-local function find_razor_extension_path()
-    -- Fallback in case mason is lazy loaded or MASON env var is just not set
-    local expanded_mason = vim.fn.expand("$MASON")
-    local mason = expanded_mason == "$MASON" and vim.fs.joinpath(vim.fn.stdpath("data"), "mason") or expanded_mason
-    local mason_packages = vim.fs.joinpath(mason, "packages")
-
-    local stable_path = vim.fs.joinpath(mason_packages, "roslyn", "libexec", ".razorExtension")
-    if vim.fn.isdirectory(stable_path) == 1 then
-        return stable_path
-    end
-
-    -- TODO: Once the .razorExtension moves to the stable roslyn package, remove this
-    local unstable_path = vim.fs.joinpath(mason_packages, "roslyn-unstable", "libexec", ".razorExtension")
-    if vim.fn.isdirectory(unstable_path) == 1 then
-        return unstable_path
-    end
-
-    return nil
-end
-
 function M.check()
     vim.health.start("roslyn.nvim: Requirements")
 
     local v = vim.version()
-    if v.major > 0 or (v.major == 0 and v.minor >= 11) then
-        vim.health.ok("Neovim >= 0.11")
+    if v.major > 0 or (v.major == 0 and v.minor >= 12) then
+        vim.health.ok("Neovim >= 0.12")
     else
         vim.health.error(
-            "Neovim >= 0.11 is required",
-            "Please upgrade to Neovim 0.11 or later. See https://github.com/neovim/neovim/releases"
+            "Neovim >= 0.12 is required",
+            "Please upgrade to Neovim 0.12 or later. See https://github.com/neovim/neovim/releases"
         )
     end
 
@@ -72,36 +37,69 @@ function M.check()
 
     vim.health.start("roslyn.nvim: Roslyn Language Server")
 
-    local executables = get_roslyn_executables()
-    local found_exe = vim.iter(executables):find(function(exe)
-        return vim.fn.executable(exe) == 1
-    end)
-
-    if found_exe then
-        vim.health.ok(string.format("%s: found", found_exe))
+    local found = require("roslyn.utils").get_roslyn_lsp_path()
+    if found then
+        vim.health.ok(string.format("found %s", found))
     else
         vim.health.error("Roslyn language server not found", {
             "Install via Mason: :MasonInstall roslyn",
+            "Or install as a .NET global tool: dotnet tool install -g Microsoft.CodeAnalysis.LanguageServer",
             "Or follow manual installation instructions at https://github.com/seblj/roslyn.nvim#-installation",
         })
     end
 
-    local found_extension = find_razor_extension_path()
-    if found_extension then
-        vim.health.ok(string.format("Razor extension: found at %s", found_extension))
-    else
-        vim.health.warn("Razor extension not found", {
-            "Razor support will be limited.",
-            "Install the roslyn package via Mason to get the Razor extension.",
-        })
+    vim.health.start("roslyn.nvim: Roslyn extensions:")
+    local config = require("roslyn.config").get()
+
+    local roslyn_extensions = require("roslyn.config").get().extensions or {}
+
+    local ext_count = 0
+    for ext_name, extension in pairs(roslyn_extensions) do
+        vim.health.start(string.format("'%s'", ext_name))
+        ext_count = ext_count + 1
+
+        if extension.enabled then
+            vim.health.ok("Enabled")
+            local resolved_config = type(extension.config) == "function" and extension.config() or extension.config
+            local resolved_path = type(resolved_config.path) == "function" and resolved_config.path()
+                or resolved_config.path
+
+            if not resolved_path then
+                vim.health.warn(string.format("Resolved path is empty "))
+            else
+                local stat = vim.uv.fs_stat(resolved_path)
+                local is_file = stat and stat.type == "file"
+                if is_file then
+                    vim.health.ok(string.format("Resolved path: '%s' (file exists)", resolved_path))
+                else
+                    vim.health.warn(string.format("Resolved path: '%s' (file does not exist)", resolved_path))
+                end
+            end
+
+            local resolved_args = type(resolved_config.args) == "function" and resolved_config.args()
+                or resolved_config.args
+            if resolved_args then
+                vim.health.ok(string.format("Resolved args:\n%s", table.concat(resolved_args, "\n")))
+            else
+                vim.health.info("No args provided for this extension")
+            end
+        else
+            vim.health.info("Disabled")
+        end
     end
+
+    if ext_count == 0 then
+        vim.health.info("No roslyn extensions configured")
+    end
+
+    vim.health.start("roslyn.nvim: Complementary language servers")
 
     if vim.fn.executable("vscode-html-language-server") == 1 then
         vim.health.ok("vscode-html-language-server: found")
     else
         vim.health.warn("vscode-html-language-server not found", {
-            "Razor HTML support will be limited.",
-            "Install the html_lsp package via Mason to get the Razor extension.",
+            "Razor/Blazor HTML support will be limited.",
+            "Install the html-lsp package via Mason.",
         })
     end
 
@@ -109,15 +107,12 @@ function M.check()
         vim.health.ok("html-lsp client: configured")
     else
         vim.health.warn("html-lsp client not configured", {
-            "Razor HTML support will be limited.",
-            "Consider configuring the html-lsp client for better Razor support.",
+            "Razor/Blazor html support will be limited.",
+            "Configure the html-lsp client for full Razor/Blazor support.",
         })
     end
 
     vim.health.start("roslyn.nvim: File Watching Configuration")
-
-    local config = require("roslyn.config").get()
-
     local client = vim.lsp.get_clients({ name = "roslyn" })[1]
     if not client then
         vim.health.warn("Roslyn is not running. Cannot determine file watching configuration.")
