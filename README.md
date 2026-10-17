@@ -168,9 +168,6 @@ opts = {
     -- Whether to search for solution files in child directories as part of root detection.
     broad_search = false,
 
-    -- Silence initialization notifications.
-    silent = false,
-
     -- Dim code excluded by inactive preprocessor branches.
     dim_inactive_regions = true,
 }
@@ -219,7 +216,7 @@ vim.lsp.config("roslyn", {
 - `:Roslyn context` shows current Roslyn workspace context
 - `:Roslyn config` selects the active build configuration
 - `:Roslyn unityslnf` generates a Unity-focused solution filter
-- `:Roslyn restart`, `:Roslyn start`, and `:Roslyn stop` are kept for compatibility but follow upstream deprecation toward `:lsp restart roslyn`, `:lsp enable roslyn`, and `:lsp stop roslyn`
+- Use `:lsp restart roslyn`, `:lsp enable roslyn`, and `:lsp stop roslyn` for lifecycle control. The fork retains the deprecated `:Roslyn start` command for its custom multi-solution selection flow; `:Roslyn restart` and `:Roslyn stop` have been removed.
 
 ## Notes
 
@@ -369,7 +366,7 @@ end
 - `:Roslyn context` 查看当前 Roslyn 工作区上下文
 - `:Roslyn config` 选择当前构建配置
 - `:Roslyn unityslnf` 生成 Unity 场景下使用的 solution filter
-- `:Roslyn restart` / `:Roslyn start` / `:Roslyn stop` 为兼容保留，上游推荐逐步使用 `:lsp restart roslyn` / `:lsp enable roslyn` / `:lsp stop roslyn`
+- 启停请使用 `:lsp restart roslyn` / `:lsp enable roslyn` / `:lsp stop roslyn`。本分支保留了已弃用的 `:Roslyn start`，用于自定义的多 solution 选择流程；`:Roslyn restart` 和 `:Roslyn stop` 已移除。
 
 ## 说明
 
