@@ -149,7 +149,6 @@ return {
     opts = {
         filewatching = "roslyn",
         broad_search = false,
-        silent = false,
         dim_inactive_regions = true,
     },
 }
@@ -310,7 +309,6 @@ return {
     opts = {
         filewatching = "roslyn",
         broad_search = false,
-        silent = false,
         dim_inactive_regions = true,
     },
 }
@@ -328,9 +326,6 @@ opts = {
 
     -- 是否在子目录中搜索 solution 文件
     broad_search = false,
-
-    -- 是否静默初始化通知
-    silent = false,
 
     -- 是否将未激活的预处理分支代码置灰
     dim_inactive_regions = true,
@@ -376,3 +371,9 @@ end
 [nuget.org]: https://www.nuget.org/packages/roslyn-language-server
 [nvim-lspconfig]: https://github.com/neovim/nvim-lspconfig
 [Azure Devops feed]: https://dev.azure.com/azure-public/vside/_artifacts/feed/vs-impl/NuGet/roslyn-language-server.linux-x64
+
+## Fork architecture / 扩展架构
+
+See [FORK_ARCHITECTURE.md](FORK_ARCHITECTURE.md) for upstream synchronization boundaries, target selection policy, and regression commands.
+
+上游 target/discovery/store 保持原样；Fork 的搜索、异步选择、会话状态及扩展命令集中在 `lua/roslyn/fork/`。唯一 solution 也会执行 `ignore_target` 和项目包含检查；没有匹配 solution 时进入 project 选择流程。

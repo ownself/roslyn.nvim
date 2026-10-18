@@ -1,7 +1,7 @@
 local M = {}
 
 function M.sln(client, solution)
-    require("roslyn.store").set_client_resolved_target(client.id, {
+    require("roslyn.fork.store").set_client_resolved_target(client.id, {
         kind = "solution",
         target = solution,
     })
@@ -16,7 +16,7 @@ function M.sln(client, solution)
 end
 
 function M.project(client, projects)
-    require("roslyn.store").set_client_resolved_target(client.id, {
+    require("roslyn.fork.store").set_client_resolved_target(client.id, {
         kind = "project",
         target = projects[1],
     })

@@ -26,7 +26,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
     callback = function(args)
         local client = vim.lsp.get_clients({ name = "roslyn", bufnr = args.buf })[1]
         if client then
-            local resolved_target = require("roslyn.store").get_client_resolved_target(client.id)
+            local resolved_target = require("roslyn.fork.store").get_client_resolved_target(client.id)
             vim.g.roslyn_nvim_selected_target = resolved_target
         end
     end,
