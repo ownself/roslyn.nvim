@@ -6,7 +6,7 @@ local function get_mason_path()
     return expanded_mason == "$MASON" and vim.fs.joinpath(vim.fn.stdpath("data"), "mason") or expanded_mason
 end
 
----@return string?
+---@return string
 function M.get_roslyn_lsp_path()
     local sysname = vim.uv.os_uname().sysname:lower()
     local iswin = not not (sysname:find("windows") or sysname:find("mingw"))
@@ -35,7 +35,7 @@ function M.populate_virtual_buffer_content(lsp_client, uri, bufnr)
         uri = uri,
     }
 
-    local response = lsp_client:request_sync("workspace/textDocumentContent", params, bufnr)
+    local response = lsp_client:request_sync("workspace/textDocumentContent", params, nil, bufnr)
 
     assert(not response.err, vim.inspect(response.err))
     local content = response.result.text or ""

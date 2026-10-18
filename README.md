@@ -21,7 +21,7 @@ Huge thanks to:
 ## Requirements
 
 - Neovim >= 0.12.0
-- Roslyn language server downloaded locally
+- Roslyn language server >= `5.12.0-1.26453.19` downloaded locally
 - .NET SDK installed and `dotnet` command available
 
 ## What This Fork Changes
@@ -176,6 +176,30 @@ opts = {
 - `auto` lets Neovim participate in watched-file registration when available.
 - `off` is a last-resort performance hack and can leave Roslyn with stale workspace state after external file edits.
 
+### Daemon mode
+
+The server is started in daemon mode.
+A single language server is shared between multiple clients (like multiple neovim instances,
+or other editors on the same machine) instead of starting a dedicated server per instance.
+Clients use **named pipes** to relay but solutions are still opened per client.
+The runtime overhead and metadata caches are shared, reducing memory usage and startup time.
+
+The daemon **stays alive for 900 seconds** - default as of 5.12.0-1.26453.19 - **after the last client disconnects**.
+This can be changed with the environment variable
+`ROSLYN_LANGUAGE_SERVER_DAEMON_KEEPALIVE` (`-1` keeps it alive forever, `0`
+exits immediately), or by appending `--daemonKeepAlive <seconds>` to the cmd.
+(`vim.env.ROSLYN_LANGUAGE_SERVER_DAEMON_KEEPALIVE = "0"`)
+
+To opt out of daemon mode, override the cmd without `--daemon-mode`:
+
+```lua
+vim.lsp.config("roslyn", {
+    cmd = { "/path/to/roslyn-language-server-or-microsoft-codeanalysis-languageserver", "--stdio" },
+})
+```
+
+To configure language server specific settings sent to the server, you can use the `vim.lsp.config` interface with `roslyn` as the name of the server.
+
 ## Selected Target State
 
 This fork exposes the active target as:
@@ -237,7 +261,7 @@ vim.lsp.config("roslyn", {
 ## 要求
 
 - Neovim >= 0.12.0
-- 已安装 Roslyn language server
+- 已安装 Roslyn language server >= `5.12.0-1.26453.19`
 - 已安装 .NET SDK，并且 `dotnet` 命令可用
 
 ## 这个 Fork 的主要改动
@@ -335,6 +359,20 @@ opts = {
 - `filewatching = "roslyn"` 是这个 fork 当前的默认值，也推荐作为大多数场景下的首选配置。
 - `auto` 表示在可用时让 Neovim 参与 watched-file 注册。
 - `off` 仅建议作为最后的性能兜底手段使用；当文件被外部工具修改时，Roslyn 的工作区状态和诊断可能会变旧。
+
+### Daemon 模式
+
+默认以 daemon 模式启动，需要 Roslyn language server >= `5.12.0-1.26453.19`。多个编辑器实例可共享服务端运行时和元数据缓存，但 solution 仍按 client 分别打开。
+
+最后一个 client 断开后，daemon 默认保留 900 秒。可用 `ROSLYN_LANGUAGE_SERVER_DAEMON_KEEPALIVE` 环境变量调整（`0` 立即退出，`-1` 永久保留），或在启动参数中传入 `--daemonKeepAlive <seconds>`。
+
+若需关闭 daemon 模式，可覆盖启动命令，不包含 `--daemon-mode`：
+
+```lua
+vim.lsp.config("roslyn", {
+    cmd = { "/path/to/roslyn-language-server", "--stdio" },
+})
+```
 
 ## 当前 Target 状态
 
